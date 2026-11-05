@@ -2,7 +2,7 @@
  * Other intents (accessibility, fares, grievances, option selection) remain
  * handled by the existing conversational engine.
  */
-import type { ChatReply, Context, CanonicalItinerary, TransportMode } from "./engine";
+import type { ChatReply, Context, CanonicalItinerary } from "./engine";
 import { findFullStops, loadFullGtfs, lookupGtfsRoutes, planFullGtfs, type FullSearchMode } from "./full-gtfs";
 import { filterRouteOptions } from "./route-options";
 
