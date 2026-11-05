@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Accessibility,
   AlertTriangle,
@@ -6,11 +6,16 @@ import {
   Bus,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Clock,
   Copy,
   ExternalLink,
   Layers,
+  Footprints,
+  Share2,
+  ArrowRightLeft,
   Phone,
   ShieldCheck,
   Ticket,
@@ -18,6 +23,13 @@ import {
   Zap,
 } from "lucide-react";
 import type { Card, CanonicalItinerary, ComparisonItem } from "@/lib/transit/engine";
+import {
+  ROUTE_FILTERS,
+  filterRouteOptions,
+  routeFilterCounts,
+  routeHighlights,
+  type RouteFilter,
+} from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 
 const Badge = ({
@@ -72,7 +84,7 @@ export function ResultCard({
   onSelectOption,
 }: {
   card: Card;
-  onSelectOption?: (optionIndex: number) => void;
+  onSelectOption?: (itinerary: CanonicalItinerary) => void;
 }) {
   if (card.kind === "route_options") {
     return (
@@ -553,17 +565,7 @@ function GrievanceCard({ card }: { card: Extract<Card, { kind: "grievance" }> })
             href={card.link}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted"
-          >
-            Official Grievance Portal <ArrowRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    </Shell>
-  );
-}
-
-export function RouteOptionsCard({
+            className="inline-flex items-center gap-1.5 rounded-full bexport function RouteOptionsCard({
   options,
   activeItineraryId,
   origin,
@@ -576,255 +578,334 @@ export function RouteOptionsCard({
   origin: string;
   destination: string;
   selectedFilter?: string;
-  onSelectOption?: (optionIndex: number) => void;
+  onSelectOption?: (itinerary: CanonicalItinerary) => void;
 }) {
   const [selectedId, setSelectedId] = useState(activeItineraryId);
-  const [filter, setFilter] = useState<string>(selectedFilter || "All");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<RouteFilter>(
+    ROUTE_FILTERS.includes(selectedFilter as RouteFilter)
+      ? (selectedFilter as RouteFilter)
+      : "All",
+  );
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [shareLabel, setShareLabel] = useState("Share Journey");
+  const [expandedStops, setExpandedStops] = useState<string[]>([]);
+  const slider = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedId(activeItineraryId);
   }, [activeItineraryId]);
 
-  const filterTabs = [
-    "All",
-    "Fastest",
-    "Metro",
-    "Bus",
-    "Suburban Rail",
-    "Mixed",
-    "Lowest Fare",
-    "Fewest Transfers",
-  ];
+  useEffect(() => {
+    if (ROUTE_FILTERS.includes(selectedFilter as RouteFilter)) {
+      setFilter(selectedFilter as RouteFilter);
+    }
+  }, [selectedFilter]);
 
-  let displayed = [...options];
+  const counts = routeFilterCounts(options);
+  const highlights = routeHighlights(options);
+  const displayed = filterRouteOptions(options, filter);
+  const selected = options.find((route) => route.id === selectedId) ?? options[0];
 
-  if (filter === "Fastest") {
-    displayed.sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes);
-  } else if (filter === "Lowest Fare") {
-    displayed.sort((a, b) => a.fare.totalFare - b.fare.totalFare);
-  } else if (filter === "Fewest Transfers") {
-    displayed.sort((a, b) => a.transferCount - b.transferCount);
-  } else if (filter === "Metro") {
-    displayed = displayed.filter(
-      (it) => it.mode === "Metro",
-    );
-  } else if (filter === "Bus") {
-    displayed = displayed.filter((it) => it.mode === "Bus");
-  } else if (filter === "Suburban Rail") {
-    displayed = displayed.filter(
-      (it) => it.mode === "Suburban Rail",
-    );
-  } else if (filter === "Mixed") {
-    displayed = displayed.filter(
-      (it) => it.mode === "Mixed" || (it.modesInvolved && it.modesInvolved.length > 1),
-    );
-  }
+  const selectRoute = (route: CanonicalItinerary) => {
+    setSelectedId(route.id);
+    setDetailsOpen(true);
+    setExpandedStops([]);
+    onSelectOption?.(route);
+  };
 
-  const handleSelect = (it: CanonicalItinerary, idx: number) => {
-    setSelectedId(it.id);
-    if (onSelectOption) {
-      onSelectOption(it.optionIndex ?? idx + 1);
+  const chooseFilter = (next: RouteFilter) => {
+    setFilter(next);
+    slider.current?.scrollTo({ left: 0, behavior: "smooth" });
+  };
+
+  const shareJourney = async () => {
+    if (!selected) return;
+    const message = [
+      "NammaTransit AI - Estimated Journey",
+      origin + " to " + destination,
+      selected.routeName,
+      "Time: approximately " + selected.totalDurationMinutes + " minutes",
+      "Fare: approximately INR " + selected.fare.totalFare + " (" + selected.fare.fareDataStatus + ")",
+      "Legs:",
+      ...selected.legs.map(
+        (leg, i) =>
+          String(i + 1) + ". " + leg.mode + ": " + leg.routeName + " (" + leg.from + " to " + leg.to + ")",
+      ),
+      "Static routing data. Check current services and fares with operators.",
+    ].join("\n");
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "NammaTransit AI Journey", text: message });
+        setShareLabel("Shared");
+      } else if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message);
+        setShareLabel("Copied!");
+      } else {
+        setShareLabel("Share unavailable");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      setShareLabel("Share unavailable");
+    }
+  };
+
+  const filterIcon = (name: RouteFilter) => {
+    switch (name) {
+      case "Fastest": return <Zap className="h-4 w-4" />;
+      case "Metro": return <TrainFront className="h-4 w-4" />;
+      case "Bus": return <Bus className="h-4 w-4" />;
+      case "Suburban Rail": return <TrainFront className="h-4 w-4" />;
+      case "Mixed": return <ArrowRightLeft className="h-4 w-4" />;
+      default: return <Layers className="h-4 w-4" />;
     }
   };
 
   return (
-    <Shell
-      icon={Layers}
-      title={`Route Options: ${origin} → ${destination}`}
-      badge={<Badge tone="fast">{options.length} Available Routes</Badge>}
-    >
-      <div className="space-y-3.5">
-        {/* Filter Pills */}
-        <div className="flex flex-wrap gap-1.5 border-b border-border/40 pb-2.5">
-          {filterTabs.map((tab) => {
-            const isActive = filter === tab;
+    <section className="animate-rise min-w-0 rounded-3xl border border-border/70 bg-card p-3 shadow-soft sm:p-5" aria-label="Route alternatives">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+            <Layers className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-display text-base font-bold text-foreground sm:text-lg">
+              Route Alternatives ({options.length})
+            </h3>
+            <p className="truncate text-xs text-muted-foreground">{origin} → {destination}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={shareJourney}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2 text-xs font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <Share2 className="h-3.5 w-3.5 text-accent" />
+            {shareLabel}
+          </button>
+          <button type="button" onClick={() => setDetailsOpen(!detailsOpen)}
+            aria-expanded={detailsOpen}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2 text-xs font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            {detailsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {detailsOpen ? "Hide Details" : "Show Details"}
+          </button>
+        </div>
+      </header>
+
+      <nav aria-label="Filter transport alternatives" className="mt-3 flex gap-2 overflow-x-auto pb-3">
+        {ROUTE_FILTERS.map((name) => (
+          <button
+            key={name}
+            type="button"
+            aria-pressed={filter === name}
+            onClick={() => chooseFilter(name)}
+            className={[
+              "inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              filter === name
+                ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
+                : "border-border bg-muted/30 text-muted-foreground hover:border-emerald-400 hover:bg-muted",
+            ].join(" ")}
+          >
+            {filterIcon(name)}
+            {name}
+            <span className={[
+              "rounded-full px-1.5 py-0.5 text-[10px]",
+              filter === name ? "bg-white/20 text-white" : "bg-muted text-foreground",
+            ].join(" ")}>{counts[name]}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">Select a card to compare. Swipe sideways for more routes.</p>
+        <div className="flex shrink-0 gap-1">
+          <button type="button" aria-label="Scroll route cards left"
+            onClick={() => slider.current?.scrollBy({ left: -310, behavior: "smooth" })}
+            className="rounded-full border border-border p-1.5 text-muted-foreground hover:bg-muted">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Scroll route cards right"
+            onClick={() => slider.current?.scrollBy({ left: 310, behavior: "smooth" })}
+            className="rounded-full border border-border p-1.5 text-muted-foreground hover:bg-muted">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {displayed.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No {filter === "Fastest" ? "comparable fastest" : filter.toLowerCase()} route is available in the current results.
+          <button type="button" onClick={() => chooseFilter("All")}
+            className="ml-2 font-semibold text-accent underline underline-offset-2">
+            Show all
+          </button>
+        </div>
+      ) : (
+        <div ref={slider} className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto pb-3" aria-label="Selectable route cards">
+          {displayed.map((route, index) => {
+            const active = route.id === selected?.id;
+            const direct = route.transferCount === 0;
+            const cheapest = highlights.cheapestId === route.id;
+            const leastWalking = highlights.leastWalkingId === route.id;
+            const fastest = highlights.fastestId === route.id;
             return (
               <button
-                key={tab}
+                key={route.id}
                 type="button"
-                onClick={() => setFilter(tab)}
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                  isActive
-                    ? "bg-accent text-accent-foreground shadow-xs"
-                    : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
+                aria-pressed={active}
+                aria-label={"Select option " + (route.optionIndex ?? index + 1) + ": " + route.routeName}
+                onClick={() => selectRoute(route)}
+                className={[
+                  "flex w-[84%] min-w-[245px] shrink-0 snap-start flex-col rounded-3xl border p-4 text-left transition",
+                  "sm:w-[47%] xl:w-[31.5%] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                  active
+                    ? "border-emerald-500 bg-emerald-50/70 shadow-md ring-2 ring-emerald-400/70 dark:bg-emerald-950/30"
+                    : "border-border bg-card hover:border-emerald-300 hover:shadow-sm",
+                ].join(" ")}
               >
-                {tab}
+                <div className="mb-3 flex min-h-12 flex-wrap content-start items-start gap-1.5">
+                  <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                    #{route.optionIndex ?? index + 1}
+                  </span>
+                  {fastest && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                      <Zap className="h-3 w-3" /> FASTEST EST.
+                    </span>
+                  )}
+                  {cheapest && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                      LOWEST EST. FARE
+                    </span>
+                  )}
+                  {direct && (
+                    <span className="rounded-full bg-sky-100 px-2 py-1 text-[10px] font-bold text-sky-900 dark:bg-sky-950 dark:text-sky-200">
+                      DIRECT ROUTE
+                    </span>
+                  )}
+                  {leastWalking && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-1 text-[10px] font-bold text-teal-900 dark:bg-teal-950 dark:text-teal-200">
+                      <Footprints className="h-3 w-3" /> LEAST WALKING
+                    </span>
+                  )}
+                </div>
+
+                {active && <span className="mb-2 self-end text-xs font-semibold text-emerald-700 dark:text-emerald-300"><Check className="mr-1 inline h-3.5 w-3.5" />Selected</span>}
+                <div className="flex w-full items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 min-h-10 font-display text-sm font-bold leading-snug text-foreground">
+                      {route.routeName}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{route.mode === "Mixed" ? route.modesInvolved?.join(" + ") : route.mode}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-display text-xl font-bold tabular-nums text-accent">~{route.totalDurationMinutes}</p>
+                    <p className="text-[10px] text-muted-foreground">min</p>
+                    <p className="mt-1 text-xs font-semibold tabular-nums text-foreground">₹{route.fare.totalFare}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex min-h-12 flex-wrap items-center gap-1.5 rounded-2xl bg-muted/60 p-2">
+                  {route.legs.map((leg, legIndex) => (
+                    <span key={leg.routeId + "-" + legIndex} className="inline-flex max-w-full items-center gap-1">
+                      {legIndex > 0 && <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                      <span className="inline-flex max-w-[150px] items-center gap-1 truncate rounded-lg border border-border/60 bg-card px-2 py-1 text-[10px] font-semibold text-foreground">
+                        {leg.mode === "Bus" ? <Bus className="h-3 w-3 shrink-0" /> : <TrainFront className="h-3 w-3 shrink-0" />}
+                        <span className="truncate">{leg.routeName}</span>
+                      </span>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-3 grid w-full grid-cols-3 gap-1 border-t border-border/60 pt-3 text-center">
+                  <div><p className="font-bold text-foreground">{route.transferCount}</p><p className="text-[10px] text-muted-foreground">Transfers</p></div>
+                  <div><p className="font-bold text-foreground">{route.totalStops}</p><p className="text-[10px] text-muted-foreground">Stops</p></div>
+                  <div><p className="font-bold text-foreground">~{route.walkingMinutes}m</p><p className="text-[10px] text-muted-foreground">Walking</p></div>
+                </div>
+                <div className="mt-3 flex w-full flex-wrap gap-2 text-[11px] text-muted-foreground">
+                  <span>Ride ~{route.inVehicleMinutes}m</span>
+                  <span>Wait ~{route.waitingMinutes}m</span>
+                </div>
+                <div className={[
+                  "mt-auto w-full border-t border-border/60 pt-3 text-center text-xs font-semibold",
+                  active ? "text-emerald-700 dark:text-emerald-300" : "text-accent",
+                ].join(" ")}>
+                  {active ? "Active Route" : "Select Option"}
+                </div>
               </button>
             );
           })}
         </div>
+      )}
 
-        {displayed.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
-            No routes matching filter "{filter}". Select "All" to view all available options.
-          </p>
-        ) : (
-          <div className="space-y-2.5">
-            {displayed.map((it, idx) => {
-              const isSelected = it.id === selectedId;
-              const isExpanded = expandedId === it.id;
+      {detailsOpen && selected && (
+        <section className="mt-3 rounded-2xl border border-border/70 bg-muted/20 p-3 sm:p-4" aria-label="Selected itinerary details">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                Currently selected journey
+              </p>
+              <h4 className="mt-1 font-display text-sm font-bold text-foreground">{selected.routeName}</h4>
+              <p className="text-xs text-muted-foreground">
+                {selected.transferCount} transfer(s) · {selected.totalStops} stops · estimated {selected.totalDistanceKm} km
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-lg font-bold text-accent">~{selected.totalDurationMinutes} min</p>
+              <p className="text-sm font-bold text-foreground">₹{selected.fare.totalFare} <span className="text-[10px] font-normal text-muted-foreground">estimated / reference</span></p>
+            </div>
+          </div>
 
+          <ol className="mt-3 space-y-3">
+            {selected.legs.map((leg, index) => {
+              const key = selected.id + "-leg-" + index;
+              const isExpanded = expandedStops.includes(key);
               return (
-                <div
-                  key={it.id}
-                  onClick={() => handleSelect(it, idx)}
-                  className={`cursor-pointer rounded-xl border p-3.5 transition-all ${
-                    isSelected
-                      ? "border-accent bg-accent/5 ring-1 ring-accent/30 shadow-xs"
-                      : "border-border/70 hover:border-accent/40 hover:bg-muted/30"
-                  }`}
-                >
-                  {/* Option Header */}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
-                        Option {it.optionIndex ?? idx + 1}
-                      </span>
-                      {it.isFastest && (
-                        <Badge tone="fast">
-                          <Zap className="h-3 w-3" /> Fastest
-                        </Badge>
-                      )}
-                      {it.modesInvolved && it.modesInvolved.length > 1 ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-900 dark:bg-purple-950 dark:text-purple-300">
-                          {it.modesInvolved.join(" + ")}
-                        </span>
-                      ) : (
-                        <Badge tone="ok">{it.mode}</Badge>
+                <li key={key} className="rounded-xl border border-border/60 bg-card p-3">
+                  <div className="flex items-start gap-2">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">{index + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">{leg.mode}: {leg.routeName}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{leg.from} → {leg.to}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {Math.max(0, leg.stops.length - 1)} stops · ~{leg.durationMinutes} min ride · estimated frequency {leg.frequencyMinutes} min
+                      </p>
+                      <button type="button"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+                        aria-expanded={isExpanded}
+                        onClick={() =>
+                          setExpandedStops((old) =>
+                            isExpanded ? old.filter((item) => item !== key) : [...old, key],
+                          )
+                        }>
+                        {isExpanded ? "Hide stops" : "Show all stops"}
+                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                      {isExpanded && (
+                        <ol className="mt-2 ml-3 list-decimal space-y-1 text-xs text-muted-foreground">
+                          {leg.stops.map((stop, i) => <li key={stop + i}>{stop}</li>)}
+                        </ol>
                       )}
                     </div>
-                    {isSelected && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                        Active Selection
-                      </span>
-                    )}
                   </div>
-
-                  {/* Option Title & Key Metrics */}
-                  <div className="mt-2.5 flex flex-wrap items-baseline justify-between gap-2">
-                    <div>
-                      <p className="font-display text-sm font-semibold text-foreground">
-                        {it.routeName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {it.transferCount === 0
-                          ? "Direct route (0 transfers)"
-                          : `${it.transferCount} transfer (${it.transferPoints.join(", ")})`}
-                        {" · "}
-                        {it.totalStops} stops · ~{it.totalDistanceKm} km
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-display text-base font-bold text-accent">
-                        ~{it.totalDurationMinutes} mins
-                      </p>
-                      <p className="text-xs font-semibold text-foreground">₹{it.fare.totalFare}</p>
-                    </div>
-                  </div>
-
-                  {/* Door to door time summary */}
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-accent" />
-                      Travel: ~{it.inVehicleMinutes}m
-                    </span>
-                    <span>•</span>
-                    <span>Wait: ~{it.waitingMinutes}m</span>
-                    <span>•</span>
-                    <span>Walk: ~{it.walkingMinutes}m</span>
-                  </div>
-
-                  {/* Boarding and transfer points */}
-                  <div className="mt-2.5 rounded-lg bg-muted/50 p-2 text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 text-foreground">
-                      <span className="font-semibold text-[11px] text-muted-foreground uppercase">
-                        Board:
-                      </span>
-                      <span>{it.boardingPoint || it.origin}</span>
-                    </div>
-                    {it.transferDescription ? (
-                      <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200 font-medium">
-                        <span className="font-semibold text-[11px] uppercase">Transfer:</span>
-                        <span>{it.transferDescription}</span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-center gap-1.5 text-foreground">
-                      <span className="font-semibold text-[11px] text-muted-foreground uppercase">
-                        Arrive:
-                      </span>
-                      <span>{it.arrivalPoint || it.destination}</span>
-                    </div>
-                  </div>
-
-                  {/* Expand / Collapse Leg Details */}
-                  <div className="mt-2.5 flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedId(isExpanded ? null : it.id);
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-                    >
-                      {isExpanded ? "Hide route details" : "View route legs"}
-                      {isExpanded ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelect(it, idx);
-                      }}
-                      className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
-                        isSelected
-                          ? "bg-accent text-accent-foreground"
-                          : "border border-border bg-background hover:bg-muted"
-                      }`}
-                    >
-                      {isSelected ? "Active Route" : "Select Option"}
-                    </button>
-                  </div>
-
-                  {/* Expanded legs preview */}
-                  {isExpanded && (
-                    <div className="mt-3 space-y-2 border-t pt-2.5 text-xs">
-                      {it.legs.map((leg, legIdx) => (
-                        <div
-                          key={legIdx}
-                          className="rounded-lg border border-border/50 bg-background/80 p-2.5"
-                        >
-                          <div className="flex items-center justify-between font-semibold">
-                            <span className="text-foreground">{leg.routeName}</span>
-                            <span className="text-muted-foreground">
-                              ~{leg.durationMinutes} mins
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-muted-foreground">
-                            {leg.from} → {leg.to} ({leg.stops.length} stops) · Every{" "}
-                            {leg.frequencyMinutes}m
-                          </p>
-                        </div>
-                      ))}
+                  {index < selected.legs.length - 1 && (
+                    <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                      Change services{selected.transferPoints[index] ? " at " + selected.transferPoints[index] : ""}. Follow station/stop signs and confirm walking access.
                     </div>
                   )}
-                </div>
+                </li>
               );
             })}
-          </div>
-        )}
+          </ol>
 
-        <p className="text-[11px] text-muted-foreground italic">
-          Tip: You can switch between routes by clicking any option or typing "Select Option 2",
-          "Which is fastest?", or "Show mixed routes".
-        </p>
-      </div>
-    </Shell>
+          <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-card p-3 text-center text-xs">
+            <div><p className="font-bold text-foreground">~{selected.inVehicleMinutes}m</p><p className="text-muted-foreground">Travel</p></div>
+            <div><p className="font-bold text-foreground">~{selected.waitingMinutes}m</p><p className="text-muted-foreground">Waiting</p></div>
+            <div><p className="font-bold text-foreground">~{selected.walkingMinutes}m</p><p className="text-muted-foreground">Walking</p></div>
+          </div>
+          <p className="mt-2 text-[11px] italic text-muted-foreground">
+            {selected.timingLabel} Fares and timings are estimates or reference values; not live arrivals.
+          </p>
+        </section>
+      )}
+    </section>
   );
 }
