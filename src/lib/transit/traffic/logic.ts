@@ -125,7 +125,8 @@ export function combineTrafficResults(
   candidates: TrafficJourneyInput[], results: TrafficResult[],
   enabled: boolean, now = new Date().toISOString(),
 ): TrafficCompareResponse {
-  const allTrafficAvailable = enabled && candidates.every((route, i) =>
+  const hasBus = candidates.some((route) => route.legs.some((leg) => leg.mode === "Bus"));
+  const allTrafficAvailable = enabled && hasBus && candidates.every((route, i) =>
     !route.legs.some((leg) => leg.mode === "Bus") ||
     results[i]?.status === "TRAFFIC_AWARE");
   const ranked = allTrafficAvailable && candidates.length > 1 ?
