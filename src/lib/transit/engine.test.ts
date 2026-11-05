@@ -297,3 +297,50 @@ describe("Estimated fare labeling regression", () => {
     expect(fare.cards[0]?.kind).toBe("fare_breakdown");
   });
 });
+
+
+// Multimodal composition must preserve intermediate boardings, not just legs[0].
+describe("Complete mixed-mode itinerary regression", () => {
+  it("retains nested Metro transfers in a Bus + Metro journey", () => {
+    const options = planMixedModeItineraries("Koyambedu", "Chennai Airport");
+    const busMetro = options.find(
+      (it) =>
+        it.modesInvolved?.includes("Bus") &&
+        it.modesInvolved?.includes("Metro") &&
+        it.legs.length >= 3,
+    );
+
+    expect(busMetro).toBeDefined();
+    expect(busMetro!.legs[0]!.from).toBe("Koyambedu");
+    expect(busMetro!.legs[busMetro!.legs.length - 1]!.to).toBe("Chennai Airport");
+    expect(busMetro!.transferCount).toBe(busMetro!.legs.length - 1);
+    expect(busMetro!.inVehicleMinutes).toBe(
+      busMetro!.legs.reduce((sum, leg) => sum + leg.durationMinutes, 0),
+    );
+    expect(busMetro!.totalDurationMinutes).toBe(
+      busMetro!.inVehicleMinutes + busMetro!.walkingMinutes + busMetro!.waitingMinutes,
+    );
+    expect(busMetro!.fare.totalFare).toBe(
+      busMetro!.fare.components.reduce((sum, item) => sum + item.amount, 0),
+    );
+    expect(busMetro!.fare.fareDataStatus).toBe("estimated");
+  });
+
+  it("never truncates a mixed itinerary in its stop counts or fare components", () => {
+    const options = planMixedModeItineraries("Anna Nagar Tower", "Chennai Airport");
+    expect(options.length).toBeGreaterThan(0);
+    for (const itinerary of options) {
+      expect(itinerary.legs.length).toBeGreaterThanOrEqual(2);
+      expect(itinerary.totalStops).toBe(
+        itinerary.legs.reduce((sum, leg) => sum + Math.max(0, leg.stops.length - 1), 0),
+      );
+      expect(itinerary.transferCount).toBe(itinerary.legs.length - 1);
+      expect(itinerary.totalDurationMinutes).toBe(
+        itinerary.inVehicleMinutes + itinerary.waitingMinutes + itinerary.walkingMinutes,
+      );
+      expect(itinerary.fare.totalFare).toBe(
+        itinerary.fare.components.reduce((sum, item) => sum + item.amount, 0),
+      );
+    }
+  });
+});
