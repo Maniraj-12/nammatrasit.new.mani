@@ -288,6 +288,7 @@ function toItinerary(
     if (step.ride === currentPattern && legs.length) {
       const leg = legs[legs.length - 1]!;
       leg.to = toName;
+      leg.alightingStopId = end[0];
       leg.stops.push(toName);
       leg.durationMinutes += step.edgeMinutes;
       leg.distanceKm += edgeKm;
@@ -302,6 +303,9 @@ function toItinerary(
         from: fromName,
         to: toName,
         direction: route[2] || pattern[3] || "Direction shown in GTFS",
+        boardingStopId: start[0],
+        alightingStopId: end[0],
+        ...(pattern[3] === "0" || pattern[3] === "1" ? { directionId: pattern[3] } : {}),
         stops: [fromName, toName],
         durationMinutes: step.edgeMinutes,
         distanceKm: edgeKm,
