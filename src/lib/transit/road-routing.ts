@@ -12,6 +12,7 @@ const configuredBase = import.meta.env?.VITE_OSRM_ROUTE_BASE?.trim();
 const BASE = (configuredBase || DEMO_BASE).replace(/\/$/, "");
 const cache = new Map<string, Promise<LatLon[] | null>>();
 let lastCall = 0;
+let requestQueue: Promise<void> = Promise.resolve();
 let demoRequests = 0;
 const DEMO_MAX_SESSION_REQUESTS = 8;
 
@@ -56,8 +57,8 @@ export async function roadAlignedBusPath(stops: LatLon[]): Promise<LatLon[] | nu
 
   if (!configuredBase && demoRequests >= DEMO_MAX_SESSION_REQUESTS) return null;
   if (!configuredBase) demoRequests++;
-  const job = (async () => {
-    // Keep the public demonstration service to at most one request / second.
+  const job = requestQueue.then(async () => {
+    // Queue all geometry lookups: at most one public demo request per second.
     const sleep = Math.max(0, lastCall + 1150 - Date.now());
     if (sleep) await new Promise((resolve) => setTimeout(resolve, sleep));
     lastCall = Date.now();
@@ -75,7 +76,8 @@ export async function roadAlignedBusPath(stops: LatLon[]): Promise<LatLon[] | nu
     } finally {
       clearTimeout(timeout);
     }
-  })();
+  });
+  requestQueue = job.then(() => undefined, () => undefined);
 
   cache.set(key, job);
   if (cache.size > 30) cache.delete(cache.keys().next().value!);
