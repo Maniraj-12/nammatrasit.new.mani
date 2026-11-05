@@ -9,6 +9,7 @@
 import type { CanonicalItinerary, JourneyLeg } from "./engine";
 import type { TransportMode } from "./data";
 import { coordinateDistanceKm, estimateFullGtfsFare } from "./estimated-fares";
+import { deduplicatePhysicalJourneys } from "./deduplicate-journeys";
 
 export type GtfsStop = [id: string, name: string, lat: number | null, lon: number | null, mode: TransportMode, parent: string, fareZone?: string];
 export type GtfsRoute = [id: string, shortName: string, longName: string, mode: TransportMode];
@@ -235,9 +236,11 @@ export function planFullGtfs(
     }
   }
 
-  results.sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes);
-  if (results.length > 1) results[0]!.isFastest = true;
-  return results.slice(0, maxResults).map((it, i) => ({ ...it, optionIndex: i + 1 }));
+  // The GTFS has overlapping Metro/rail trip patterns, sometimes for the
+  // exact same passenger corridor. Count each physical route only once.
+  const unique = deduplicatePhysicalJourneys(results, maxResults);
+  if (unique.length > 1) unique[0]!.isFastest = true;
+  return unique.map((it, i) => ({ ...it, optionIndex: i + 1 }));
 }
 
 function toItinerary(

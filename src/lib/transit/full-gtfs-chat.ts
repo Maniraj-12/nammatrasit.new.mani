@@ -6,6 +6,7 @@ import type { ChatReply, Context, CanonicalItinerary } from "./engine";
 import { findFullStops, loadFullGtfs, lookupGtfsRoutes, planFullGtfs, type FullSearchMode } from "./full-gtfs";
 import { filterRouteOptions } from "./route-options";
 import { normalizeCommuterMessage, resolveStopName } from "./intent-recovery";
+import { deduplicatePhysicalJourneys } from "./deduplicate-journeys";
 
 function requestedMode(text: string): FullSearchMode {
   const t = text.toLowerCase();
@@ -50,15 +51,10 @@ function endpoints(text: string, ctx: Context) {
   return { origin: ctx.origin, destination: ctx.destination, explicit: false };
 }
 
-function itineraryKey(it: CanonicalItinerary) {
-  return it.legs.map((leg) => leg.routeId + ":" + leg.from + ":" + leg.to).join("|");
-}
-
 function selectUseful(routes: CanonicalItinerary[], limit = 6) {
-  const sorted = [...routes].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes);
-  const distinct = new Map<string, CanonicalItinerary>();
-  for (const route of sorted) distinct.set(itineraryKey(route), route);
-  const all = [...distinct.values()].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes);
+  // Route IDs and stop-time variants are NOT separate choices if they use
+  // the same corridor. Keep distinct bus numbers, modes and physical paths.
+  const all = deduplicatePhysicalJourneys(routes);
   const picks: CanonicalItinerary[] = [];
   for (const mode of ["Metro", "Bus", "Suburban Rail", "Mixed"] as const) {
     const first = all.find((it) => it.mode === mode);
