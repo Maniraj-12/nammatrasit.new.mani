@@ -10,10 +10,11 @@ import type { CanonicalItinerary, JourneyLeg } from "./engine";
 import type { TransportMode } from "./data";
 import { coordinateDistanceKm, estimateFullGtfsFare } from "./estimated-fares";
 import { deduplicatePhysicalJourneys } from "./deduplicate-journeys";
+import { sliceGtfsShape, type LatLon } from "./gtfs-shapes";
 
 export type GtfsStop = [id: string, name: string, lat: number | null, lon: number | null, mode: TransportMode, parent: string, fareZone?: string];
 export type GtfsRoute = [id: string, shortName: string, longName: string, mode: TransportMode];
-export type GtfsPattern = [routeIndex: number, stopIndices: number[], segmentMinutes: number[], direction: string, serviceId: string];
+export type GtfsPattern = [routeIndex: number, stopIndices: number[], segmentMinutes: number[], direction: string, serviceId: string, shapeId?: string];
 export type GtfsWalk = [from: number, to: number, minutes: number, source: string];
 export type FullGtfsData = {
   metadata: { routeCount: number; stopCount: number; tripCount: number; patternCount: number; claim: string; status: string };
@@ -22,6 +23,7 @@ export type FullGtfsData = {
   patterns: GtfsPattern[];
   walks: GtfsWalk[];
   metroFareByZone?: Record<string, number>;
+  shapes?: Record<string, LatLon[]>;
 };
 
 type RideEdge = [to: number, pattern: number, minutes: number];
@@ -260,6 +262,7 @@ function toItinerary(
 
   const legs: JourneyLeg[] = [];
   const legStopPairs: Array<[number, number]> = [];
+  const legShapeIds: string[] = [];
   const transfers: string[] = [];
   const sourceNotes = new Set<string>();
   let currentPattern = -1;
@@ -310,11 +313,28 @@ function toItinerary(
       };
       legs.push(leg);
       legStopPairs.push([prev.stop, step.stop]);
+      legShapeIds.push(pattern[5] || "");
     }
     currentPattern = step.ride;
     lastStop = step.stop;
   }
   if (!legs.length || lastStop < 0) return null;
+  for (let i = 0; i < legs.length; i++) {
+    const leg = legs[i]!;
+    const sourceShape = index.data.shapes?.[legShapeIds[i]!];
+    const [fromStopIndex, toStopIndex] = legStopPairs[i]!;
+    const from = index.data.stops[fromStopIndex]!;
+    const to = index.data.stops[toStopIndex]!;
+    const startCoord = from[2] != null && from[3] != null
+      ? [from[2], from[3]] as LatLon : undefined;
+    const endCoord = to[2] != null && to[3] != null
+      ? [to[2], to[3]] as LatLon : undefined;
+    const track = sliceGtfsShape(sourceShape, startCoord, endCoord);
+    if (track) {
+      leg.pathCoordinates = track;
+      leg.pathSource = "gtfs-shape";
+    }
+  }
   const final = path[path.length - 1]!;
   const modesInvolved = [...new Set(legs.map((l) => l.mode))];
   const totalStops = legs.reduce((count, leg) => count + leg.stops.length - 1, 0);
