@@ -48,8 +48,8 @@ export function buildTrafficRequest(options: CanonicalItinerary[]): TrafficCompa
   return { journeys: options.slice(0, MAX_JOURNEYS).map((itinerary) => ({
     id: itinerary.id,
     baselineTotalMinutes: itinerary.totalDurationMinutes,
-    legs: itinerary.legs.map((leg) => ({
-      mode: leg.mode,
+    legs: itinerary.legs.filter((leg) => ["Bus", "Metro", "Suburban Rail"].includes(leg.mode)).map((leg) => ({
+      mode: leg.mode as "Bus" | "Metro" | "Suburban Rail",
       routeId: leg.routeId,
       baseMinutes: leg.durationMinutes,
       stops: leg.mode === "Bus" ? (leg.stopCoordinates ?? []) : [],
