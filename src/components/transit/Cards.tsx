@@ -26,6 +26,7 @@ import { fareText, type Card, type CanonicalItinerary, type ComparisonItem } fro
 import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, type RouteFilter } from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 import { RouteMap } from "./RouteMap";
+import { GoogleTrafficComparison } from "./GoogleTrafficComparison";
 
 const Badge = ({
   children,
@@ -604,6 +605,7 @@ export function RouteOptionsCard({
       : "All",
   );
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const [trafficMode, setTrafficMode] = useState(false);
   const [shareLabel, setShareLabel] = useState("Share Journey");
   const [expandedStops, setExpandedStops] = useState<string[]>([]);
   const slider = useRef<HTMLDivElement>(null);
@@ -785,7 +787,7 @@ export function RouteOptionsCard({
                   </span>
                   {fastest && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                      <Zap className="h-3 w-3" /> FASTEST EST.
+                      <Zap className="h-3 w-3" /> {trafficMode ? "FASTEST STATIC EST." : "FASTEST EST."}
                     </span>
                   )}
                   {cheapest && (
@@ -871,7 +873,25 @@ export function RouteOptionsCard({
             </div>
           </div>
 
-          <RouteMap itinerary={selected} />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button"
+              aria-pressed={!trafficMode}
+              onClick={() => setTrafficMode(false)}
+              className={"rounded-full border px-3 py-2 text-xs font-semibold " +
+                (!trafficMode ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-border bg-card")}>
+              Static route map
+            </button>
+            <button type="button"
+              aria-pressed={trafficMode}
+              onClick={() => setTrafficMode(true)}
+              className={"rounded-full border px-3 py-2 text-xs font-semibold " +
+                (trafficMode ? "border-blue-500 bg-blue-50 text-blue-800" : "border-border bg-card")}>
+              Compare current road traffic
+            </button>
+          </div>
+          {trafficMode
+            ? <GoogleTrafficComparison options={options} selectedId={selected.id} onSelect={selectRoute} />
+            : <RouteMap itinerary={selected} />}
 
           <ol className="mt-3 space-y-3">
             {selected.legs.map((leg, index) => {

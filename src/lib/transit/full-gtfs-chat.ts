@@ -73,6 +73,27 @@ function selectUseful(routes: CanonicalItinerary[], limit = 6) {
 export async function respondFromFullGtfs(message: string, ctx: Context): Promise<ChatReply | null> {
   const normalized = normalizeCommuterMessage(message);
   const t = normalized.trim().toLowerCase();
+  if (/\b(traffic|congestion|road jam|rush.hour|traffic.aware|traffic delay)\b/.test(t)) {
+    const choices = ctx.availableItineraries ?? [];
+    if (!choices.length || !ctx.origin || !ctx.destination) {
+      return {
+        reply: "Tell me your starting point and destination first, then I can compare MTC road congestion against the available Metro and suburban journey estimates.",
+        cards: [], suggestions: ["Koyambedu to Guindy", "Show all options"],
+        context: ctx, intent: "general", status: "OK",
+      };
+    }
+    return {
+      reply: "These are your currently available journeys. Open **Compare current road traffic** beneath the selected journey to request Google's congestion-aware estimate for MTC bus legs. Metro and suburban journey times are still static estimates, not live train ETAs. Google Maps and its API must be configured before traffic checks work.",
+      cards: [
+        { kind: "route_options" as const, options: choices,
+          origin: ctx.origin, destination: ctx.destination,
+          activeItineraryId: ctx.activeItineraryId ?? choices[0]!.id,
+          selectedFilter: "All" },
+      ],
+      suggestions: ["Which is faster?", "Show all options", "Show mixed routes"],
+      context: ctx, intent: "general", status: "OK",
+    };
+  }
   if (/\b(live tracking|track (?:my |the )?(?:bus|metro|train)|where is (?:my |the )?(?:bus|train|metro)|(?:bus|train|metro).*(?:arriv|eta|live)|next bus|next train)\b/.test(t)) {
     return {
       reply: "Live bus, Metro and suburban vehicle positions or arrival ETAs are not connected to this prototype. MTC provides passenger tracking at https://mtcbus.tn.gov.in/ and Chennai One offers passenger information. The journey cards below are static route estimates, not live tracking.",
