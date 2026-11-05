@@ -191,12 +191,12 @@ def build(input_zip, output_path):
     # Cross-mode transfers only for nearby coordinates. These are candidate
     # pedestrian connections, NOT verified street paths or station entrances.
     grid = defaultdict(list)
-    for i, (_, _, lat, lon, mode, _) in enumerate(stops):
+    for i, (_, _, lat, lon, mode, _, _) in enumerate(stops):
         if lat is None or lon is None:
             continue
         grid[(int(lat * 500), int(lon * 500))].append(i)
 
-    for i, (_, _, lat, lon, mode, _) in enumerate(stops):
+    for i, (_, _, lat, lon, mode, _, _) in enumerate(stops):
         if lat is None or lon is None:
             continue
         gx, gy = int(lat * 500), int(lon * 500)
