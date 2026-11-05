@@ -1,144 +1,148 @@
-# NammaTransit AI: current road traffic via TomTom (without Google Cloud billing)
+# Chennai traffic estimates using TomTom Routing API v1
 
-This is an **optional** congestion-adjustment feature, not MTC bus GPS
-or a guaranteed arrival prediction.
+**No Google Cloud Maps account or billing is needed.** This integration is
+disabled by default. It requires an authorised MyTomTom Routing API key.
+This is a **road congestion estimate, not live MTC vehicle arrival data**.
 
-## 1. Free TomTom account
+## 1. Register and verify free access
 
-Visit https://my.tomtom.com/ and register. This is the CURRENT account
-management portal as of November 2026 (the old Developer Portal was
-discontinued on 15 September 2026).
+Visit https://my.tomtom.com/ and sign in. The current Evaluation key may
+show Routing API among its products; this does not prove access to every
+premium Orbis version. For this project use **TomTom Maps Routing API v1**.
 
-Navigate to **API & SDK Keys** and locate **My first API key**. Enable the
-**Routing API** permission if the account requires product access selection.
+Official documentation:
+https://docs.tomtom.com/routing-api/documentation/tomtom-maps/v1/calculate-route
 
-TomTom pricing lists 20,000 free Routing API calls/month and says no
-credit card is required. Limits and terms can change:
-https://docs.tomtom.com/pricing
+API Explorer:
+https://docs.tomtom.com/routing-api/api-explorer
 
-TomTom documents India as a supported real-time-traffic routing market:
-https://docs.tomtom.com/routing-api/documentation/tomtom-orbis-maps/v3/product-information/market-coverage
+Your first actual test is the definitive check of whether your evaluation
+key can use the v1 endpoint for Chennai. Do not purchase Premium solely
+because Orbis v3 is locked.
 
-Countrywide coverage does not prove that every Chennai road has current
-data. Test Koyambedu / Guindy route cases with your own account.
+## 2. Test the Chennai API in TomTom's API Explorer
 
-## 2. Test BEFORE linking website
+Choose **TomTom Maps - v1**, then **GET Calculate Route**.
 
-Use TomTom Routing API Orbis v3:
-https://docs.tomtom.com/routing-api/documentation/tomtom-orbis-maps/v3/calculate-route
+- versionNumber: `1`
+- locations: `13.075,80.195:13.006,80.220`
+- contentType: `json`
+- traffic: `true`
+- departAt: `now`
+- routeType: `fastest`
+- travelMode: `car`
+- computeTravelTimeFor: `all`
+- routeRepresentation: `summaryOnly`
+- key: enter your MyTomTom API key privately into the Explorer
 
-Endpoint: POST https://api.tomtom.com/maps/orbis/routing/routes/calculate?apiVersion=3
+Direct request structure (do not share real keys):
 
-Required headers:
-- Content-Type: application/json
-- TomTom-Api-Key: your PRIVATE API key
-- Attributes: routes.summary
+```http
+GET https://api.tomtom.com/routing/1/calculateRoute/13.075,80.195:13.006,80.220/json?traffic=true&departAt=now&travelMode=car&routeType=fastest&computeTravelTimeFor=all&routeRepresentation=summaryOnly&key=YOUR_KEY
+```
 
-Example payload (approximate Chennai points; not official MTC stop IDs):
+Unlike Orbis v3 GeoJSON inputs, the v1 request URL uses **latitude,
+longitude** coordinate order. These are approximate demo points near
+Koyambedu and Guindy, not verified MTC stops.
+
+A valid response contains (illustrative field names; not live values):
 
 ```json
 {
-  "routePlanningLocations": {
-    "origin": { "type": "Point", "coordinates": [80.195, 13.075] },
-    "destination": { "type": "Point", "coordinates": [80.220, 13.006] }
-  },
-  "routeType": "fast",
-  "travelMode": "car",
-  "traffic": "live"
+  "routes": [{
+    "summary": {
+      "travelTimeInSeconds": 1200,
+      "historicTrafficTravelTimeInSeconds": 900,
+      "liveTrafficIncidentsTravelTimeInSeconds": 1200,
+      "lengthInMeters": 5000
+    }
+  }]
 }
 ```
 
-A successful response should contain
-`routes[0].summary.travelDurationInSeconds`.
-If no route or 401/403/429 error occurs, check your key, account status,
-product permission, usage quota and coordinates. No test values are
-supplied or claimed by this project.
+Values here are an example only. If historical traffic is missing, this
+implementation does not invent a current-traffic penalty. For actual
+success, the Explorer must display a **real response HTTP 200 + JSON**
+after Execute; a list of possible response status codes in documentation
+does not confirm a request succeeded.
 
-## 3. Deploy a server that can securely call TomTom
+The adapter deliberately makes **one request per bus leg**, with
+`traffic=true&computeTravelTimeFor=all`, to obtain both current
+`travelTimeInSeconds` and `historicTrafficTravelTimeInSeconds` on
+the same route. This is more economical and robust than two distinct
+Orbis v3 routing requests.
 
-Pull Request #12 builds this into the existing TanStack Start app.
+## 3. Apply to NammaTransit AI
 
-Keep keys in **hosting environment secrets** (do not commit keys to GitHub
-and do not use VITE_ for the routing API key):
+The changes are in GitHub Pull Request #12. Review, merge, and deploy
+to a host supporting TanStack Start API endpoints. Google AI Studio's
+preview may not execute full server routes.
+
+Set these only in private hosting environment variables:
 
 ```env
-TOMTOM_API_KEY=<PRIVATE_KEY_FROM_MY_TOMTOM>
+TOMTOM_API_KEY=YOUR_PRIVATE_ROUTING_API_KEY
 TOMTOM_TRAFFIC_ENABLED=true
 ```
 
-Default is disabled. You can merge the code without giving it a key.
-The old Google Cloud Routes feature is not used by the TomTom UI; keep
-TRAFFIC_API_ENABLED=false and leave Google credentials empty.
+**Do not** put this key in GitHub, client React code, VITE_* variables,
+public screenshots, or exposed URLs in browser source code.
 
-The application server must be able to execute TanStack Start API routes.
-The Google AI Studio app preview may not execute them. If so, deploy the
-GitHub app to a capable host and set environment secrets there.
+If a key is accidentally shared, rotate it in MyTomTom.
 
-The endpoint for your own frontend is:
-POST /api/tomtom-traffic
+Existing Google Maps variables can remain unset or disabled:
+`TRAFFIC_API_ENABLED=false`.
 
-Only your backend calls TomTom; never access the remote API from client
-React code with the private key.
+## 4. Traffic-aware fastest estimates
 
-## 4. How it updates NammaTransit AI
+Open a journey such as "Koyambedu to Guindy", choose **Compare current
+road traffic**, then click **Check current road traffic**.
 
-Open a journey such as "Koyambedu to Guindy", then:
+For each MTC leg with known GTFS stops, the adapter requests the
+traffic-aware road duration and typical historic road duration on one
+route, then adjusts the existing journey duration:
 
-1. Select any route alternative and open "Compare current road traffic".
-2. Click "Check current road traffic".
-3. The server sends two TomTom Orbis Routing v3 queries per MTC bus leg
-   using its recorded GTFS stop coordinates in route order:
-   - traffic: "historical" (typical roads)
-   - traffic: "live" (current roads)
-4. It computes:
-   adjusted door-to-door estimate =
-     original static GTFS estimate
-     + (TomTom live road duration - TomTom historical road duration)
-5. Metro and suburban rail travel times are NOT adjusted for road traffic.
-6. "Fastest traffic-aware estimate" appears only if all compared bus legs
-   have valid responses. Missing data => "Traffic unavailable".
-7. The existing Leaflet map is unchanged and **does not show live TomTom
-   congestion flow or TomTom road geometry**. Future map overlay requires
-   product permission, licensing review, and separately accounted map/traffic
-   tile API usage.
+```
+adjusted ETA estimate =
+  static GTFS journey estimate
+  + (TomTom v1 current road duration - TomTom v1 historic road duration)
+```
 
-### Accuracy caveats
+For a mixed journey, this adjustment applies to **MTC legs only**;
+Metro/suburban times are static estimates. Walking, assumed bus waiting,
+transfer time and stop dwell estimates remain unchanged.
 
-TomTom Orbis routing v3 offers car or taxi routing modes; it does not
-produce verified MTC-specific bus road restrictions, boarding waits,
-service headways or bus position. The route might differ from MTC's
-actual service road. This is a *traffic-adjusted estimate*, not a live
-bus arrival prediction or an MTC-guaranteed journey time.
+Only call an itinerary "Fastest traffic-aware estimate" when all relevant
+bus road requests succeed. A missing API result must show **unavailable**,
+not a fictitious live ETA.
 
-Current static GTFS timetable/stop pattern limitations still apply.
-The two TomTom calls can use slightly different road alignments; the
-adapter rejects estimates with wildly mismatched distance.
+The existing Leaflet/OpenStreetMap map continues showing **static
+geometry**, without overlaying TomTom live traffic content. A live
+traffic-flow overlay requires a separate permitted product and review
+of the relevant tile/map-service terms.
 
-## 5. Free-tier safeguards
+## 5. Usage and security
 
-- Maximum 6 GTFS alternatives in a comparison.
-- Maximum 5 MTC legs across alternatives => up to 10 TomTom API requests.
-- Conservative Chennai coordinate and stop-count validation.
-- 60-second server-side response cache for repeated route checks.
-- Per-process demo rate limits; not suitable as your only public-abuse
-  protection on multi-instance deployments.
-- Default off unless explicitly enabled.
+- The endpoint is disabled by default; it makes no TomTom calls without
+  explicit server configuration.
+- Maximum 6 alternatives and 10 TomTom v1 calls per comparison,
+  validated against GTFS coordinates within the Chennai area.
+- One-minute server cache, request limits and timeouts help with trial
+  usage but are **not sufficient protection** against abuse when the
+  application is publicly deployed.
+- Monitor MyTomTom Analytics and confirm actual free-tier limits for the
+  current Evaluation product. Do not assume Premium v3 access.
+- Before allowing public traffic queries, add authenticated access,
+  distributed rate limiting and request quotas.
 
-Use MyTomTom Analytics to monitor free monthly request usage.
-For a publicly accessible prototype, add authenticated API access
-and a distributed limiter before making traffic lookup publicly available.
+## 6. Accuracy
 
-## 6. Troubleshooting
+TomTom supplies a road-driving route estimate, **not a tracked MTC bus**.
+A vehicle's position, actual boarding time, route diversion, bus-only
+access, stop dwell and service delays cannot be derived from a Google or
+TomTom road ETA alone. The result remains an *estimate*, not a guarantee.
 
-- "TomTom key not configured": set TOMTOM_API_KEY, enable
-  TOMTOM_TRAFFIC_ENABLED=true and restart/redeploy server.
-- "Backend unavailable": use a host that executes server route handlers;
-  AI Studio preview may not support full backend execution.
-- "Route insufficient coordinates": use a GTFS itinerary with actual
-  source stops, not a curated fallback route without geographical data.
-- "Traffic comparison incomplete": not all MTC legs returned usable data.
-- "Road durations differ greatly": may be because the road paths are
-  unsuitable; don't make a fastest claim.
-
-Reference: TomTom latest Routing API v3 documentation, not the older
-/v1/calculateRoute endpoint.
+The provider v1 service documentation may recommend Orbis v3 for new
+integrations; the project deliberately uses v1 because the user's
+Evaluation key reports v3 as Premium and v1 still documents the features
+needed for congestion-adjusted travel-time estimates.
