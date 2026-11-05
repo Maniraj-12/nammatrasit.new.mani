@@ -2,7 +2,11 @@ import type { CanonicalItinerary } from "./engine";
 export type TransitMapSegment = {
   mode: string;
   name: string;
+  /** Actual GTFS stop locations, not sufficient for a physical route line. */
   coordinates: Array<[number, number]>;
+  /** A validated route geometry from GTFS shapes or an OSM road routing service. */
+  geometry?: Array<[number, number]>;
+  geometrySource?: "gtfs-shape" | "road-router";
 };
 
 export function itineraryMapSegments(itinerary: CanonicalItinerary): TransitMapSegment[] {
@@ -12,8 +16,19 @@ export function itineraryMapSegments(itinerary: CanonicalItinerary): TransitMapS
         Number.isFinite(lat) && Number.isFinite(lon) &&
         lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180,
       );
+    const geometry = (leg.pathCoordinates ?? []).filter(([lat, lon]) =>
+      Number.isFinite(lat) && Number.isFinite(lon) &&
+      lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180,
+    );
     return points.length >= 2
-      ? [{ mode: leg.mode, name: leg.routeName, coordinates: points }]
+      ? [{
+          mode: leg.mode,
+          name: leg.routeName,
+          coordinates: points,
+          ...(geometry.length >= 3 && leg.pathSource
+            ? { geometry, geometrySource: leg.pathSource }
+            : {}),
+        }]
       : [];
   });
 }

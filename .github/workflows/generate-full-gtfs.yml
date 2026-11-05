@@ -3,7 +3,7 @@ name: Generate full Chennai static GTFS network
 on:
   push:
     branches:
-      - feature/fare-ranges-and-intent-recovery
+      - fix/road-rail-map-geometry
     paths:
       - scripts/build-full-gtfs.py
       - .github/workflows/generate-full-gtfs.yml
@@ -34,6 +34,6 @@ jobs:
             git add public/data/chennai-full-network.json
             if ! git diff --cached --quiet; then
               git commit -m "data: import all available Chennai GTFS routes [skip ci]"
-              git push origin HEAD:feature/fare-ranges-and-intent-recovery
+              git push origin HEAD:fix/road-rail-map-geometry
             fi
           fi
