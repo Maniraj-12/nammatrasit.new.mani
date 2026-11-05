@@ -20,6 +20,7 @@ const WORD_FIXES: Record<string, string> = {
 export function normalizeCommuterMessage(message: string): string {
   return message
     .replace(/\b[a-z]+\b/gi, (word) => WORD_FIXES[word.toLowerCase()] ?? word)
+    .replace(/\b(metro|bus|train|suburban)\s+far\b/gi, "$1 fare")
     .replace(/\b(\w+)\s+2\s+(\w+)\b/g, "$1 to $2");
 }
 function compact(s: string) {
