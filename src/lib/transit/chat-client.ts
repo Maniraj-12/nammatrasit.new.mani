@@ -1,6 +1,7 @@
 import { respond, type ChatReply, type Context } from "./engine";
 import { respondFromFullGtfs } from "./full-gtfs-chat";
 import { normalizeCommuterMessage } from "./intent-recovery";
+import { mergeTravellerContext } from "./judge-context";
 
 export type ChatTransport = "server" | "local";
 
@@ -22,14 +23,17 @@ export async function requestTransitResponse(
   context: Context,
   sendToServer: (message: string, context: Context) => Promise<ChatReply>,
 ): Promise<ChatResult> {
+  // Apply new user slots before calling either full GTFS or the fallback
+  // responder, so every branch inherits sticky preferences across turns.
+  const enriched = mergeTravellerContext(message, context);
   const normalizedMessage = normalizeCommuterMessage(message);
-  const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, context);
+  const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, enriched);
   if (fullGtfsReply) return { reply: fullGtfsReply, transport: "local" };
 
   try {
-    return { reply: await sendToServer(normalizedMessage, context), transport: "server" };
+    return { reply: await sendToServer(normalizedMessage, enriched), transport: "server" };
   } catch (error) {
     console.warn("Transit server request failed; switching to static local planner.", error);
-    return { reply: respond(normalizedMessage, context), transport: "local" };
+    return { reply: respond(normalizedMessage, enriched), transport: "local" };
   }
 }
