@@ -577,7 +577,7 @@ export function planBusItinerary(origin: string, destination: string): Canonical
             notes: fareInfo.breakdown,
           },
         ],
-        fareDataStatus: "published_tariff",
+        fareDataStatus: "estimated",
         fareSource: "Tamil Nadu State Transport Department Fare Order (G.O. Ms.)",
         lastVerificationDate: "2026-04-27",
         discountNote:
@@ -650,7 +650,7 @@ export function planBusItinerary(origin: string, destination: string): Canonical
                 ticketType: `${r2.type} Bus Ticket`,
               },
             ],
-            fareDataStatus: "published_tariff",
+            fareDataStatus: "estimated",
             fareSource: "Tamil Nadu State Transport Department Fare Order",
             lastVerificationDate: "2026-04-27",
           },
@@ -748,7 +748,7 @@ export function planMixedModeItineraries(
               notes: metro2.fare.discountNote,
             },
           ],
-          fareDataStatus: "published_tariff",
+          fareDataStatus: "estimated",
           fareSource: "Combined MTC Government Fare Order & CMRL Official GTFS Tariff",
           lastVerificationDate: "2026-10-04",
           discountNote: "20% off on Metro segment with WhatsApp QR / Singara Chennai Card",
@@ -817,7 +817,7 @@ export function planMixedModeItineraries(
               ticketType: bus2.fare.components[0]!.ticketType,
             },
           ],
-          fareDataStatus: "published_tariff",
+          fareDataStatus: "estimated",
           fareSource: "Combined CMRL Official GTFS Tariff & MTC Government Fare Order",
           lastVerificationDate: "2026-10-04",
         },
@@ -885,7 +885,7 @@ export function planMixedModeItineraries(
               ticketType: "UTS Second Class Ticket",
             },
           ],
-          fareDataStatus: "published_tariff",
+          fareDataStatus: "estimated",
           fareSource:
             "Combined CMRL Official GTFS Tariff & Southern Railway Suburban Passenger Tariff",
           lastVerificationDate: "2026-10-04",
@@ -954,7 +954,7 @@ export function planMixedModeItineraries(
               notes: metroSub2.fare.discountNote,
             },
           ],
-          fareDataStatus: "published_tariff",
+          fareDataStatus: "estimated",
           fareSource: "Combined Southern Railway Suburban Tariff & CMRL Official GTFS Tariff",
           lastVerificationDate: "2026-10-04",
         },
@@ -1021,7 +1021,7 @@ export function planMixedModeItineraries(
               ticketType: "UTS Second Class Ticket",
             },
           ],
-          fareDataStatus: "published_tariff",
+          fareDataStatus: "estimated",
           fareSource: "Combined MTC Government Fare Order & Southern Railway Suburban Tariff",
           lastVerificationDate: "2026-10-04",
         },
@@ -1700,7 +1700,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
           m.optionIndex = i + 1;
         });
         const singleMixed = { ...topMixed[0]!, isFastest: false };
-        const msg = `Here is the mixed-mode option from **${ctx.origin}** to **${ctx.destination}**: **${singleMixed.routeName}** (${singleMixed.modesInvolved?.join(" + ") || "Multimodal"}). Estimated door-to-door duration is **${singleMixed.totalDurationMinutes} minutes** with a verified fare of **₹${singleMixed.fare.totalFare}**.`;
+        const msg = `Here is the mixed-mode option from **${ctx.origin}** to **${ctx.destination}**: **${singleMixed.routeName}** (${singleMixed.modesInvolved?.join(" + ") || "Multimodal"}). Estimated door-to-door duration is **${singleMixed.totalDurationMinutes} minutes** with an estimated, unverified fare of **₹${singleMixed.fare.totalFare}**.`;
         return {
           reply: msg,
           message: msg,
@@ -1771,7 +1771,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       const bus = planBusItinerary(ctx.origin, ctx.destination);
       if (bus) {
         const singleBus = { ...bus, isFastest: false, optionIndex: 1 };
-        const msg = `Here is the MTC bus route from ${ctx.origin} to ${ctx.destination}: **${singleBus.routeName}**. Estimated duration is **${singleBus.totalDurationMinutes} minutes** (${singleBus.totalStops} stops) with a fare of **₹${singleBus.fare.totalFare}**.`;
+        const msg = `Here is the MTC bus route from ${ctx.origin} to ${ctx.destination}: **${singleBus.routeName}**. Estimated duration is **${singleBus.totalDurationMinutes} minutes** (${singleBus.totalStops} stops) with an estimated, unverified fare of **₹${singleBus.fare.totalFare}**.`;
         return {
           reply: msg,
           message: msg,
@@ -1957,7 +1957,8 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       allItineraries[0];
 
     if (active) {
-      const reply = `For your journey from ${active.origin} to ${active.destination} via **Option ${active.optionIndex ?? 1} (${active.routeName})**, the total verified standard fare is **₹${active.fare.totalFare}** (${active.fare.fareSource}). ${active.fare.discountNote ? `(${active.fare.discountNote})` : ""}`;
+      const fareLabel = active.fare.fareDataStatus === "estimated" ? "estimated, unverified" : "reference";
+      const reply = `For your journey from ${active.origin} to ${active.destination} via **Option ${active.optionIndex ?? 1} (${active.routeName})**, the total ${fareLabel} standard fare is **₹${active.fare.totalFare}** (${active.fare.fareSource}). ${active.fare.discountNote ? `(${active.fare.discountNote})` : ""}`;
       return {
         reply,
         message: reply,
