@@ -25,6 +25,7 @@ import {
 import { fareText, type Card, type CanonicalItinerary, type ComparisonItem } from "@/lib/transit/engine";
 import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, type RouteFilter } from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
+import { RouteMap } from "./RouteMap";
 
 const Badge = ({
   children,
@@ -869,6 +870,8 @@ export function RouteOptionsCard({
               <p className="text-sm font-bold text-foreground">{fareText(selected.fare)} <span className="text-[10px] font-normal text-muted-foreground">unverified if estimated</span></p>
             </div>
           </div>
+
+          <RouteMap itinerary={selected} />
 
           <ol className="mt-3 space-y-3">
             {selected.legs.map((leg, index) => {
