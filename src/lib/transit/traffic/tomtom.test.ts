@@ -139,11 +139,9 @@ describe("TomTom Routing v1 traffic comparison without Google billing", () => {
         { ...bus.legs[0]!, stops: [[13.09 + i * .002, 80.195], [13.084 + i * .002, 80.203]] as Array<[number, number]> },
       ],
     }));
-    const result = await compareTomTomTraffic({ journeys }, {
+    await expect(compareTomTomTraffic({ journeys }, {
       enabled: true, key: "TEST-ONLY", fetcher: vi.fn() as unknown as typeof fetch,
-    });
-    expect(result.comparisonComplete).toBe(false);
-    expect(result.fastestId).toBeNull();
+    })).rejects.toThrow("Invalid traffic request");
   });
 
   it("uses v1 lat,lon ordering in URL paths rather than v3 GeoJSON lon,lat", () => {
