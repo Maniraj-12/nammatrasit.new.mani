@@ -191,7 +191,7 @@ export async function compareTomTomTraffic(
     : [];
 
   return {
-    provider: usable ? "TomTom Orbis Routing API" : null,
+    provider: usable ? "TomTom Routing API v1" : null,
     requestedAt: now,
     sourceStatus: complete ? "LIVE_ROAD_TRAFFIC" : "UNAVAILABLE",
     journeys: results,
