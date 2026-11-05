@@ -6,7 +6,8 @@
  * on proximity are candidate connections, not verified pedestrian routes.
  * Times are approximate; Metro GTFS service calendars expired in 2021.
  */
-import type { CanonicalItinerary, JourneyLeg, TransportMode } from "./engine";
+import type { CanonicalItinerary, JourneyLeg } from "./engine";
+import type { TransportMode } from "./data";
 
 export type GtfsStop = [id: string, name: string, lat: number | null, lon: number | null, mode: TransportMode, parent: string];
 export type GtfsRoute = [id: string, shortName: string, longName: string, mode: TransportMode];
