@@ -69,7 +69,8 @@ describe("Google Maps traffic-aware MTC comparison",()=>{
 
   it("won't declare fastest when any bus route fails live traffic validation",async()=>{
     const fetcher=vi.fn(async()=>({ok:false,status:429} as Response)) as unknown as typeof fetch;
-    const result=await compareTraffic(request,{enabled:true,key:"key",fetcher});
+    const uncached: TrafficCompareRequest = { journeys: [rail, { ...bus, id: "other-mtc-70", legs: [{ ...bus.legs[0]!, stops: [[13.086,80.195],[13.078,80.203],[13.060,80.21]] }] }] };
+    const result=await compareTraffic(uncached,{enabled:true,key:"key",fetcher});
     expect(result.comparisonComplete).toBe(false);
     expect(result.fastestId).toBeNull();
     expect(result.journeys[1]!.status).toBe("UNAVAILABLE");
