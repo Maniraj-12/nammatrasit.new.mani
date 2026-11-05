@@ -162,7 +162,7 @@ export function TomTomTrafficComparison({
         {data?.disclaimer}
       </p>
       <p className="text-[11px] text-muted-foreground">
-        Source: TomTom Orbis Routing API v3. Traffic requests require an active free account
+        Source: TomTom Routing API v1. Traffic requests require an active free account
         and are subject to TomTom's usage limits.
       </p>
     </section>
