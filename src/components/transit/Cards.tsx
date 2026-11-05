@@ -297,9 +297,13 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
       icon={Ticket}
       title={`Fare Breakdown: ${j.origin} → ${j.destination}`}
       badge={
-        <Badge tone={f.fareDataStatus === "official_gtfs" ? "ok" : "warn"}>
-          <ShieldCheck className="h-3 w-3" />
-          {f.fareDataStatus === "official_gtfs" ? "Verified GTFS Tariff" : "Published Tariff"}
+        <Badge tone={f.fareDataStatus === "estimated" ? "warn" : "neutral"}>
+          <Ticket className="h-3 w-3" />
+          {f.fareDataStatus === "estimated"
+            ? "Estimated Fare — Not Verified"
+            : f.fareDataStatus === "official_gtfs"
+              ? "GTFS Fare Reference"
+              : "Published Fare Reference"}
         </Badge>
       }
     >
@@ -378,8 +382,11 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
             )}
           </div>
           <p className="text-[11px] text-muted-foreground pt-1">
-            Source: {f.fareSource} · Last verified: {f.lastVerificationDate}. Tickets must be
-            purchased through official channels.
+            Source: {f.fareSource} ·{" "}
+            {f.fareDataStatus === "estimated"
+              ? "Operator fare has not been verified for this journey."
+              : `Reference date: ${f.lastVerificationDate}.`}{" "}
+            Tickets must be purchased through official channels.
           </p>
         </div>
       </div>
@@ -600,13 +607,13 @@ export function RouteOptionsCard({
     displayed.sort((a, b) => a.transferCount - b.transferCount);
   } else if (filter === "Metro") {
     displayed = displayed.filter(
-      (it) => it.mode === "Metro" || it.modesInvolved?.includes("Metro"),
+      (it) => it.mode === "Metro",
     );
   } else if (filter === "Bus") {
-    displayed = displayed.filter((it) => it.mode === "Bus" || it.modesInvolved?.includes("Bus"));
+    displayed = displayed.filter((it) => it.mode === "Bus");
   } else if (filter === "Suburban Rail") {
     displayed = displayed.filter(
-      (it) => it.mode === "Suburban Rail" || it.modesInvolved?.includes("Suburban Rail"),
+      (it) => it.mode === "Suburban Rail",
     );
   } else if (filter === "Mixed") {
     displayed = displayed.filter(
