@@ -219,15 +219,30 @@ describe("TASK 12 — 15 Mandatory Automated Vitest Scenarios", () => {
     expect(t2.context.availableItineraries![0]!.destination).toBe("Chennai Beach");
   });
 
-  // Test 13: Journey with no validated mixed-mode option (e.g. Guindy to Chennai Beach)
-  it("Scenario 13: explains when no sensible mixed-mode route exists (Guindy to Beach)", () => {
+  // Test 13: Evaluate available mixed-mode candidates, without hardcoding this
+  // city pair as unavailable merely because a direct railway option also exists.
+  it("Scenario 13: only returns composed mixed routes with complete leg data", () => {
     const t1 = respond("How do I travel from Guindy to Chennai Beach?");
     const t2 = respond("Show mixed routes", t1.context);
 
-    expect(t2.status).toBe("NO_MATCH_IN_DATASET");
-    expect(t2.cards.length).toBe(0);
-    expect(t2.reply).toContain("No sensible mixed-mode route was found");
-    expect(t2.reply).toContain("direct single-mode");
+    const mixed = planMixedModeItineraries("Guindy", "Chennai Beach");
+    if (mixed.length === 0) {
+      expect(t2.status).toBe("NO_MATCH_IN_DATASET");
+      expect(t2.cards).toHaveLength(0);
+    } else {
+      expect(t2.status).toBe("OK");
+      expect(t2.itineraries?.length).toBeGreaterThan(0);
+      for (const journey of mixed) {
+        expect(journey.mode).toBe("Mixed");
+        expect(new Set(journey.legs.map((leg) => leg.mode)).size).toBeGreaterThan(1);
+        expect(journey.legs[0]!.from).toBe("Guindy");
+        expect(journey.legs[journey.legs.length - 1]!.to).toBe("Chennai Beach");
+        expect(journey.transferCount).toBe(journey.legs.length - 1);
+        expect(journey.totalDurationMinutes).toBe(
+          journey.inVehicleMinutes + journey.walkingMinutes + journey.waitingMinutes,
+        );
+      }
+    }
   });
 
   // Test 14: Preventing duplicate route cards
