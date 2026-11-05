@@ -150,6 +150,7 @@ export type Context = {
   selectedFilter?: string | undefined;
   lastStation?: string | undefined;
   availableItineraries?: CanonicalItinerary[] | undefined;
+  pendingStopClarification?: { kind: "origin" | "destination"; options: string[]; origin: string; destination: string; mode: TransportMode | "All" };
   grievance?: { step: keyof GrievanceDraft; data: GrievanceDraft } | undefined;
 };
 
