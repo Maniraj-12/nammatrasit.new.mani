@@ -74,7 +74,7 @@ export function TomTomTrafficComparison({
           <TrafficCone className="h-4 w-4 text-orange-600"/>
           <div>
             <p className="text-sm font-bold">Current Chennai road traffic</p>
-            <p className="text-[11px] text-muted-foreground">TomTom Orbis · optional free developer API</p>
+            <p className="text-[11px] text-muted-foreground">TomTom Routing API v1 · evaluation key</p>
           </div>
         </div>
         <button type="button" onClick={()=>void checkTraffic()} disabled={loading||!hasBus}
