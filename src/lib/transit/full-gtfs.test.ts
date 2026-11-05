@@ -89,8 +89,8 @@ describe("Fare estimates and intent recovery", () => {
     const firstPair = Object.entries(raw.metroFareByZone ?? {}).find(([, fare]) => fare > 0);
     expect(firstPair).toBeDefined();
     const [a, b] = firstPair![0].split("|");
-    const from = raw.stops.findIndex((stop) => stop[0] === a || stop[5] === a);
-    const to = raw.stops.findIndex((stop) => stop[0] === b || stop[5] === b);
+    const from = raw.stops.findIndex((stop) => stop[0] === a || stop[5] === a || stop[6] === a);
+    const to = raw.stops.findIndex((stop) => stop[0] === b || stop[5] === b || stop[6] === b);
     expect(from).toBeGreaterThanOrEqual(0);
     expect(to).toBeGreaterThanOrEqual(0);
     const leg: JourneyLeg = {
