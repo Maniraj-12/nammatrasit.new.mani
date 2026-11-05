@@ -17,7 +17,7 @@ export type GtfsRoute = [id: string, shortName: string, longName: string, mode: 
 export type GtfsPattern = [routeIndex: number, stopIndices: number[], segmentMinutes: number[], direction: string, serviceId: string, shapeId?: string];
 export type GtfsWalk = [from: number, to: number, minutes: number, source: string];
 export type FullGtfsData = {
-  metadata: { routeCount: number; stopCount: number; tripCount: number; patternCount: number; claim: string; status: string };
+  metadata: { routeCount: number; stopCount: number; tripCount: number; patternCount: number; shapeCount?: number; shapePointCount?: number; shapeMappedPatterns?: number; claim: string; status: string };
   stops: GtfsStop[];
   routes: GtfsRoute[];
   patterns: GtfsPattern[];
