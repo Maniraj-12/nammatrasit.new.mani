@@ -142,7 +142,8 @@ describe("Fare estimates and intent recovery", () => {
 describe("Regression: Koyambedu to Airport duplicate Metro cards", () => {
   it("returns unique geographic Metro journeys, not six stop-time variants", () => {
     const options = planFullGtfs(network, "Koyambedu", "Chennai Airport", "Metro", 6);
-    console.info("KOYAMBEDU_METRO_DEDUP_AUDIT", JSON.stringify(options.map((route) => ({ id: route.id, duration: route.totalDurationMinutes, transfers: route.transferCount, routeName: route.routeName, stops: route.legs.map((leg) => leg.stops) }))));
+    expect(options).toHaveLength(1);
+    expect(options[0]?.isFastest).toBe(false); // No fastest comparison with a single option.
     expect(options.length).toBeGreaterThan(0);
     for (let i = 0; i < options.length; i++) {
       for (let j = i + 1; j < options.length; j++) {
@@ -151,6 +152,7 @@ describe("Regression: Koyambedu to Airport duplicate Metro cards", () => {
     }
     // The reported issue is six duplicated cards for this exact city pair.
     // If there are genuinely different geographic paths, they may remain.
-    expect(options.length).toBeLessThan(6);
+    const all = planFullGtfs(network, "Koyambedu", "Chennai Airport", "All", 6);
+    expect(all.filter((route) => route.mode === "Metro")).toHaveLength(1);
   }, 20000);
 });
