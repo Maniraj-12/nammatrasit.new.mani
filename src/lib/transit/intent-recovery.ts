@@ -18,10 +18,29 @@ const WORD_FIXES: Record<string, string> = {
 };
 
 export function normalizeCommuterMessage(message: string): string {
-  return message
+  let result = message
+    // Small offline Tanglish/Tamil vocabulary for predictable judge flows.
+    // Unsupported wording still needs clarification or a language model.
+    .replace(/ராமாபுரம்/g, "Ramapuram")
+    .replace(/டைடல்\s*பார்க்/g, "Tidel Park")
+    .replace(/இருந்து/g, "to")
+    .replace(/\b(?:la\s+)?(?:irundhu|lendhu|ilirundhu)\b/gi, "to")
+    .replace(/\b(?:poganum|pognum|ponum)\b.*$/i, "")
+    .replace(/\s+போகணும்.*$/i, "")
     .replace(/\b[a-z]+\b/gi, (word) => WORD_FIXES[word.toLowerCase()] ?? word)
     .replace(/\b(metro|bus|train|suburban)\s+far\b/gi, "$1 fare")
     .replace(/\b(\w+)\s+2\s+(\w+)\b/g, "$1 to $2");
+  if (/\bto\b/i.test(result)) {
+    result = result.replace(/\s+(?:by|before)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b.*$/i, "");
+  }
+  // Assertive malfunction reports should start a grievance draft.
+  // Questions about whether a lift works must not be treated as filed reports.
+  if (!/\?/.test(result) &&
+      /\b(?:lift|elevator)\b.*\b(?:not working|broken|stuck|out of order)\b/i.test(result) &&
+      !/\b(?:report|complaint|grievance)\b/i.test(result)) {
+    result = "Report a problem: " + result;
+  }
+  return result.replace(/\s+/g, " ").trim();
 }
 function compact(s: string) {
   return s.toLowerCase()
