@@ -34,7 +34,7 @@ function validFare(n: number | undefined): n is number {
 function zoneKeys(index: FullGtfsIndex, id: number) {
   const station = index.data.stops[id];
   if (!station) return [];
-  return [...new Set([station[0], station[5], station[0].replace(/_\d+$/, "")].filter(Boolean))];
+  return [...new Set([station[0], station[5], station[6], station[0].replace(/_\d+$/, "")].filter(Boolean))];
 }
 function metroPrice(index: FullGtfsIndex, from: number, to: number): number | undefined {
   const fares = index.data.metroFareByZone ?? {};
