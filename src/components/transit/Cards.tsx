@@ -320,6 +320,7 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
           <div>
             <p className="text-xs text-muted-foreground">Total Standard Fare ({j.mode})</p>
             <p className="font-display text-2xl font-bold text-foreground">{fareText(f)}</p>
+            {f.estimateRange && <p className="mt-1 text-[11px] text-muted-foreground">Indicative estimate; confirm the fare with the operator</p>}
           </div>
           {f.discountNote && (
             <div className="text-right">
@@ -337,7 +338,13 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
             <div key={i} className="rounded-lg border p-2.5 text-xs">
               <div className="flex items-center justify-between font-medium">
                 <span>{c.leg}</span>
-                <span className="font-bold text-foreground">₹{c.amount}</span>
+                <span className="font-bold text-foreground">
+                  {c.minFare !== undefined && c.maxFare !== undefined
+                    ? c.minFare === c.maxFare
+                      ? `~₹${c.minFare}`
+                      : `₹${c.minFare}–₹${c.maxFare} est.`
+                    : `₹${c.amount}`}
+                </span>
               </div>
               <p className="mt-1 text-muted-foreground">{c.ticketType}</p>
               {c.notes && <p className="mt-0.5 text-muted-foreground/80">{c.notes}</p>}
@@ -859,7 +866,7 @@ export function RouteOptionsCard({
             </div>
             <div className="shrink-0 text-right">
               <p className="text-lg font-bold text-accent">~{selected.totalDurationMinutes} min</p>
-              <p className="text-sm font-bold text-foreground">{fareText(selected.fare)} <span className="text-[10px] font-normal text-muted-foreground">estimated / reference</span></p>
+              <p className="text-sm font-bold text-foreground">{fareText(selected.fare)} <span className="text-[10px] font-normal text-muted-foreground">unverified if estimated</span></p>
             </div>
           </div>
 

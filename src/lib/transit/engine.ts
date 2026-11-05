@@ -27,6 +27,8 @@ export type FareComponent = {
   amount: number;
   ticketType: string;
   notes?: string;
+  minFare?: number;
+  maxFare?: number;
 };
 
 export type CanonicalFare = {
@@ -36,11 +38,17 @@ export type CanonicalFare = {
   fareSource: string;
   lastVerificationDate: string;
   discountNote?: string;
+  estimateRange?: { min: number; max: number };
 };
 
 /** A missing fare is never the same as a free ticket. */
 export function fareText(fare: CanonicalFare): string {
-  return fare.fareDataStatus === "unavailable" ? "Fare unavailable" : `₹${fare.totalFare}`;
+  if (fare.fareDataStatus === "unavailable") return "Fare unavailable";
+  if (fare.estimateRange) {
+    const { min, max } = fare.estimateRange;
+    return min === max ? `~₹${min}` : `₹${min}–₹${max} est.`;
+  }
+  return `₹${fare.totalFare}`;
 }
 
 export type JourneyLeg = {
@@ -54,6 +62,7 @@ export type JourneyLeg = {
   durationMinutes: number;
   distanceKm: number;
   frequencyMinutes: number;
+  stopCoordinates?: Array<[number, number]>;
 };
 
 export type CanonicalItinerary = {
@@ -141,6 +150,7 @@ export type Context = {
   selectedFilter?: string | undefined;
   lastStation?: string | undefined;
   availableItineraries?: CanonicalItinerary[] | undefined;
+  pendingStopClarification?: { kind: "origin" | "destination"; options: string[]; origin: string; destination: string; mode: TransportMode | "All" };
   grievance?: { step: keyof GrievanceDraft; data: GrievanceDraft } | undefined;
 };
 

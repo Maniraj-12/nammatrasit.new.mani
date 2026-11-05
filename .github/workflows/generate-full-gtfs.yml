@@ -3,7 +3,10 @@ name: Generate full Chennai static GTFS network
 on:
   push:
     branches:
-      - feature/full-chennai-gtfs-network
+      - feature/fare-ranges-and-intent-recovery
+    paths:
+      - scripts/build-full-gtfs.py
+      - .github/workflows/generate-full-gtfs.yml
 
 permissions:
   contents: write
@@ -18,13 +21,11 @@ jobs:
           persist-credentials: true
       - name: Fetch and preprocess Chennai unified GTFS feed
         run: |
-          if [ ! -f public/data/chennai-full-network.json ]; then
             curl -fL --retry 4 --retry-delay 3 --max-time 180 \
               -o /tmp/chennai-unified-gtfs.zip \
               https://github.com/ungalsoththu/ChennaiGTFS/raw/refs/heads/main/data/chennai-unified-gtfs.zip
             python3 -m zipfile -t /tmp/chennai-unified-gtfs.zip
             python3 scripts/build-full-gtfs.py /tmp/chennai-unified-gtfs.zip
-          fi
       - name: Commit generated network on feature branch
         run: |
           if [ -f public/data/chennai-full-network.json ]; then
@@ -33,6 +34,6 @@ jobs:
             git add public/data/chennai-full-network.json
             if ! git diff --cached --quiet; then
               git commit -m "data: import all available Chennai GTFS routes [skip ci]"
-              git push origin HEAD:feature/full-chennai-gtfs-network
+              git push origin HEAD:feature/fare-ranges-and-intent-recovery
             fi
           fi

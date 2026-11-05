@@ -70,6 +70,8 @@ def parse_coord(raw):
 def build(input_zip, output_path):
     with zipfile.ZipFile(input_zip) as zf:
         stops_raw = read_csv(zf, "stops.txt")
+        fare_attributes_raw = read_csv(zf, "fare_attributes.txt") if any(p.endswith("fare_attributes.txt") for p in zf.namelist()) else []
+        fare_rules_raw = read_csv(zf, "fare_rules.txt") if any(p.endswith("fare_rules.txt") for p in zf.namelist()) else []
         routes_raw = read_csv(zf, "routes.txt")
         trips_raw = read_csv(zf, "trips.txt")
         stop_times_raw = read_csv(zf, "stop_times.txt")
@@ -92,6 +94,7 @@ def build(input_zip, output_path):
             parse_coord(item.get("stop_lat")), parse_coord(item.get("stop_lon")),
             system_for_id(sid),
             item.get("parent_station") or "",
+            item.get("zone_id") or "",  # GTFS CMRL fare zone, distinct from station/stop ID
         ])
 
     routes = []
@@ -188,12 +191,12 @@ def build(input_zip, output_path):
     # Cross-mode transfers only for nearby coordinates. These are candidate
     # pedestrian connections, NOT verified street paths or station entrances.
     grid = defaultdict(list)
-    for i, (_, _, lat, lon, mode, _) in enumerate(stops):
+    for i, (_, _, lat, lon, mode, _, _) in enumerate(stops):
         if lat is None or lon is None:
             continue
         grid[(int(lat * 500), int(lon * 500))].append(i)
 
-    for i, (_, _, lat, lon, mode, _) in enumerate(stops):
+    for i, (_, _, lat, lon, mode, _, _) in enumerate(stops):
         if lat is None or lon is None:
             continue
         gx, gy = int(lat * 500), int(lon * 500)
@@ -211,7 +214,27 @@ def build(input_zip, output_path):
             insert_walk(i, j, max(3, math.ceil(metres / 65) + 2), "proximity estimate")
 
     connections = [[a, b, mins, source] for (a, b), (mins, source) in walking_edges.items()]
+    # Preserve CMRL station/zone fares as a *historical* reference only. This
+    # feed's tariff dates to 2021 and cannot verify current ticket prices.
+    amounts = {}
+    for row in fare_attributes_raw:
+        try:
+            amount = float(row.get("price", ""))
+        except (TypeError, ValueError):
+            continue
+        if row.get("currency_type") == "INR" and 0 <= amount <= 50:
+            amounts[row.get("fare_id", "")] = round(amount)
+    metro_fares = {}
+    for row in fare_rules_raw:
+        start = (row.get("origin_id") or "").strip()
+        end = (row.get("destination_id") or "").strip()
+        price = amounts.get((row.get("fare_id") or "").strip())
+        if start.startswith("CMRL-") and end.startswith("CMRL-") and price is not None and start != end:
+            metro_fares[start + "|" + end] = price
+
     metadata = {
+        "metroHistoricalFarePairs": len(metro_fares),
+        "metroFareSourceYear": 2021,
         "source": DEFAULT_SOURCE,
         "feed": "chennai-unified-gtfs.zip",
         "version": "0.2.0",
@@ -225,7 +248,7 @@ def build(input_zip, output_path):
         "walkConnectionCount": len(connections),
         "status": "Historical/structural schedules only: CMRL service calendar expired in 2021; MTC scraped 2026-04; SRR service patterns not live departures",
     }
-    payload = {"metadata": metadata, "stops": stops, "routes": routes, "patterns": patterns, "walks": connections}
+    payload = {"metadata": metadata, "stops": stops, "routes": routes, "patterns": patterns, "walks": connections, "metroFareByZone": metro_fares}
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as out:

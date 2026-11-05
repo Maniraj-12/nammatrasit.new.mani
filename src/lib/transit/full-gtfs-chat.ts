@@ -5,6 +5,7 @@
 import type { ChatReply, Context, CanonicalItinerary } from "./engine";
 import { findFullStops, loadFullGtfs, lookupGtfsRoutes, planFullGtfs, type FullSearchMode } from "./full-gtfs";
 import { filterRouteOptions } from "./route-options";
+import { normalizeCommuterMessage, resolveStopName } from "./intent-recovery";
 
 function requestedMode(text: string): FullSearchMode {
   const t = text.toLowerCase();
@@ -74,24 +75,51 @@ function selectUseful(routes: CanonicalItinerary[], limit = 6) {
 }
 
 export async function respondFromFullGtfs(message: string, ctx: Context): Promise<ChatReply | null> {
-  const t = message.trim().toLowerCase();
+  const normalized = normalizeCommuterMessage(message);
+  const t = normalized.trim().toLowerCase();
+  if (/\b(live tracking|track (?:my |the )?(?:bus|metro|train)|where is (?:my |the )?(?:bus|train|metro)|(?:bus|train|metro).*(?:arriv|eta|live)|next bus|next train)\b/.test(t)) {
+    return {
+      reply: "Live bus, Metro and suburban vehicle positions or arrival ETAs are not connected to this prototype. MTC provides passenger tracking at https://mtcbus.tn.gov.in/ and Chennai One offers passenger information. The journey cards below are static route estimates, not live tracking.",
+      cards: [], suggestions: ["Show my route", "Show all options"],
+      context: ctx, status: "OK", intent: "general",
+    };
+  }
   // Never intercept special conversational intents. Existing logic uses the
   // selected itinerary, so we must preserve it for follow-up fare questions.
   if (/\b(fare|how much|cost|price|ticket|cheapest|complaint|report|accessible|lift|alert|disruption|service update|where should i change|which is faster|which is fastest|select option|option \d|previous route|go back)\b/.test(t)) {
     return null;
   }
 
-  const from = endpoints(message, ctx);
-  const listing = /^\s*(?:list|show|find)\s+(?:all\s+)?(?:mtc\s+)?(?:bus|buses|metro|suburban|train|rail)\s*(?:routes|services)?\s*$/i.test(message);
-  const routeNumber = message.match(/^\s*(?:find\s+)?(?:mtc\s+)?(?:bus\s+)?route\s+([a-z0-9\s]{1,12})\s*$/i);
+  let from = endpoints(normalized, ctx);
+  const listing = /^\s*(?:list|show|find)\s+(?:all\s+)?(?:mtc\s+)?(?:bus|buses|metro|suburban|train|rail)\s*(?:routes|services)?\s*$/i.test(normalized);
+  const routeNumber = normalized.match(/^\s*(?:find\s+)?(?:mtc\s+)?(?:bus\s+)?route\s+([a-z0-9\s]{1,12})\s*$/i);
 
   const travelIntent =
     from.explicit ||
     /\b(show|find|give|plan|travel|route|routes|options|bus|metro|suburban|train|mixed|compare)\b/.test(t);
-  if (!travelIntent && !listing && !routeNumber) return null;
+  if (!travelIntent && !listing && !routeNumber && !ctx.pendingStopClarification) return null;
 
   const index = await loadFullGtfs();
   if (!index) return null;
+
+  // Let commuters respond "1", "option 2", or the actual station name
+  // after a clarification instead of repeating the complete journey.
+  if (ctx.pendingStopClarification) {
+    const pending = ctx.pendingStopClarification;
+    const numbered = t.match(/^(?:option\s*)?([1-4])$/);
+    const option = numbered
+      ? pending.options[Number(numbered[1]) - 1]
+      : pending.options.find((candidate) => candidate.toLowerCase() === t);
+    if (option) {
+      const origin = pending.kind === "origin" ? option : pending.origin;
+      const destination = pending.kind === "destination" ? option : pending.destination;
+      const modeSuffix = pending.mode === "All" ? "" : " by " + pending.mode;
+      return respondFromFullGtfs(
+        origin + " to " + destination + modeSuffix,
+        { ...ctx, pendingStopClarification: undefined },
+      );
+    }
+  }
 
   if (routeNumber) {
     const routeQuery = routeNumber[1]!.trim();
@@ -109,7 +137,7 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
   }
 
   if (listing && !from.origin && !from.destination) {
-    const mode = requestedMode(message);
+    const mode = requestedMode(normalized);
     const matches = index.data.routes.filter((r) => mode === "All" || r[3] === mode);
     const head = matches.slice(0, 12).map((r) => "• " + (r[1] || r[0]) + " — " + r[2]).join("\n");
     return {
@@ -123,6 +151,34 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
   }
 
   if (!from.origin || !from.destination) return null;
+  for (const kind of ["origin", "destination"] as const) {
+    const current = from[kind]!;
+    const resolved = resolveStopName(index, current);
+    if (resolved.kind === "exact") continue;
+    if (resolved.kind === "corrected") {
+      from = { ...from, [kind]: resolved.name };
+      continue;
+    }
+    if (resolved.kind === "uncertain") {
+      const other = from[kind === "origin" ? "destination" : "origin"]!;
+      const display = resolved.options.map((name, i) => (i + 1) + ". " + name).join("\n");
+      const suggestions = resolved.options.map((name) =>
+        kind === "origin" ? name + " to " + other : other + " to " + name
+      );
+      return {
+        reply: "I couldn't confidently match the " + kind + ' "' + current + '". Did you mean:\n' +
+          display + "\nChoose a number or one of the suggestions.",
+        cards: [], suggestions, intent: "route_search", status: "NO_MATCH_IN_DATASET",
+        context: {
+          ...ctx,
+          pendingStopClarification: {
+            kind, options: resolved.options, origin: from.origin!,
+            destination: from.destination!, mode: requestedMode(normalized),
+          },
+        },
+      };
+    }
+  }
   if (!findFullStops(index, from.origin).length || !findFullStops(index, from.destination).length) {
     // If there is no supported stop-name match, don't fabricate a route.
     if (!from.explicit) return null;
@@ -133,7 +189,7 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
     };
   }
 
-  const mode = requestedMode(message);
+  const mode = requestedMode(normalized);
   let routes: CanonicalItinerary[];
   if (mode === "All") {
     const candidates = [
@@ -178,6 +234,7 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
     suggestions: ["Show all options", "Show mixed routes", "Which is faster?", "Show the fare breakdown"],
     context: {
       ...ctx, origin: from.origin, destination: from.destination,
+      pendingStopClarification: undefined,
       availableItineraries: routes, activeItineraryId: first.id,
       recommendedFastestId: routes.find((r) => r.isFastest)?.id,
       modePreference: mode,

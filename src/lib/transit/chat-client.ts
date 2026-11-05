@@ -1,5 +1,6 @@
 import { respond, type ChatReply, type Context } from "./engine";
 import { respondFromFullGtfs } from "./full-gtfs-chat";
+import { normalizeCommuterMessage } from "./intent-recovery";
 
 export type ChatTransport = "server" | "local";
 
@@ -21,13 +22,14 @@ export async function requestTransitResponse(
   context: Context,
   sendToServer: (message: string, context: Context) => Promise<ChatReply>,
 ): Promise<ChatResult> {
-  const fullGtfsReply = await respondFromFullGtfs(message, context);
+  const normalizedMessage = normalizeCommuterMessage(message);
+  const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, context);
   if (fullGtfsReply) return { reply: fullGtfsReply, transport: "local" };
 
   try {
-    return { reply: await sendToServer(message, context), transport: "server" };
+    return { reply: await sendToServer(normalizedMessage, context), transport: "server" };
   } catch (error) {
     console.warn("Transit server request failed; switching to static local planner.", error);
-    return { reply: respond(message, context), transport: "local" };
+    return { reply: respond(normalizedMessage, context), transport: "local" };
   }
 }
