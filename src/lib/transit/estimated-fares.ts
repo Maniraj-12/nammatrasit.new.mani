@@ -145,7 +145,7 @@ export function estimateFullGtfsFare(
     });
   }
   return {
-    totalFare: Math.round((min + max) / 2),
+    totalFare: components.reduce((sum, component) => sum + component.amount, 0),
     estimateRange: { min, max },
     components,
     fareDataStatus: "estimated",
