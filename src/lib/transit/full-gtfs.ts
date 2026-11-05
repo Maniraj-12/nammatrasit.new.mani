@@ -8,6 +8,7 @@
  */
 import type { CanonicalItinerary, JourneyLeg } from "./engine";
 import type { TransportMode } from "./data";
+import { coordinateDistanceKm, estimateFullGtfsFare } from "./estimated-fares";
 
 export type GtfsStop = [id: string, name: string, lat: number | null, lon: number | null, mode: TransportMode, parent: string];
 export type GtfsRoute = [id: string, shortName: string, longName: string, mode: TransportMode];
@@ -19,6 +20,7 @@ export type FullGtfsData = {
   routes: GtfsRoute[];
   patterns: GtfsPattern[];
   walks: GtfsWalk[];
+  metroFareByZone?: Record<string, number>;
 };
 
 type RideEdge = [to: number, pattern: number, minutes: number];
@@ -254,6 +256,7 @@ function toItinerary(
   path.reverse();
 
   const legs: JourneyLeg[] = [];
+  const legStopPairs: Array<[number, number]> = [];
   const transfers: string[] = [];
   const sourceNotes = new Set<string>();
   let currentPattern = -1;
@@ -272,12 +275,18 @@ function toItinerary(
     const route = index.data.routes[pattern[0]]!;
     const toName = index.data.stops[step.stop]![1];
     const fromName = index.data.stops[prev.stop]![1];
-
+    const start = index.data.stops[prev.stop]!;
+    const end = index.data.stops[step.stop]!;
+    const edgeKm = coordinateDistanceKm([start[2], start[3]], [end[2], end[3]]);
+    const hasCoords = end[2] != null && end[3] != null;
     if (step.ride === currentPattern && legs.length) {
       const leg = legs[legs.length - 1]!;
       leg.to = toName;
       leg.stops.push(toName);
       leg.durationMinutes += step.edgeMinutes;
+      leg.distanceKm += edgeKm;
+      if (hasCoords) leg.stopCoordinates?.push([end[2]!, end[3]!]);
+      legStopPairs[legStopPairs.length - 1]![1] = step.stop;
     } else {
       if (legs.length > 0) transfers.push(fromName);
       const leg: JourneyLeg = {
@@ -289,10 +298,15 @@ function toItinerary(
         direction: route[2] || pattern[3] || "Direction shown in GTFS",
         stops: [fromName, toName],
         durationMinutes: step.edgeMinutes,
-        distanceKm: 0,
+        distanceKm: edgeKm,
         frequencyMinutes: 0,
+        stopCoordinates: [
+          ...(start[2] != null && start[3] != null ? [[start[2], start[3]] as [number, number]] : []),
+          ...(hasCoords ? [[end[2]!, end[3]!] as [number, number]] : []),
+        ],
       };
       legs.push(leg);
+      legStopPairs.push([prev.stop, step.stop]);
     }
     currentPattern = step.ride;
     lastStop = step.stop;
@@ -310,7 +324,7 @@ function toItinerary(
     routeName: legs.map((leg) => leg.routeName).join(" + "),
     legs,
     totalStops,
-    totalDistanceKm: 0,
+    totalDistanceKm: Math.round(legs.reduce((sum, leg) => sum + leg.distanceKm, 0) * 10) / 10,
     inVehicleMinutes: final.rideMinutes,
     walkingMinutes: final.walkMinutes,
     waitingMinutes: final.waitMinutes,
@@ -318,13 +332,7 @@ function toItinerary(
     initialWaitMinutes: final.waitMinutes > 0 ? waitEstimate[legs[0]!.mode] : 0,
     totalDurationMinutes: final.duration,
     timingLabel: "Static GTFS stop sequence. Travel and waiting times are estimates; dates and live arrivals are NOT verified. Proximity walks require pedestrian-path verification.",
-    fare: {
-      totalFare: 0,
-      components: [],
-      fareDataStatus: "unavailable",
-      fareSource: "No validated current journey-specific fare in static GTFS.",
-      lastVerificationDate: "",
-    },
+    fare: estimateFullGtfsFare(index, legs, legStopPairs),
     transferCount,
     transferPoints: transfers,
     isFastest: false,
