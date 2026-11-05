@@ -307,7 +307,7 @@ function ChatPage() {
         )}
 
         <div className="flex-1 overflow-y-auto" aria-live="polite">
-          <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+          <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
             {messages.map((m) =>
               m.role === "user" ? (
                 <div
@@ -327,13 +327,32 @@ function ChatPage() {
                     >
                       {m.text}
                     </p>
-                    {m.cards?.map((c, i) => (
-                      <ResultCard
-                        key={i}
-                        card={c}
-                        onSelectOption={(opt) => send(`Select Option ${opt}`)}
-                      />
-                    ))}
+                    {m.cards
+                      ?.filter(
+                        (card) =>
+                          card.kind !== "journey" ||
+                          !m.cards?.some((other) => other.kind === "route_options"),
+                      )
+                      .map((c, i) => (
+                        <ResultCard
+                          key={i}
+                          card={c}
+                          onSelectOption={(itinerary) => {
+                            setContext((previous) => ({
+                              ...previous,
+                              origin: itinerary.origin,
+                              destination: itinerary.destination,
+                              lastReferencedItineraryId: previous.activeItineraryId,
+                              activeItineraryId: itinerary.id,
+                              modePreference: "All",
+                              availableItineraries:
+                                c.kind === "route_options"
+                                  ? c.options
+                                  : previous.availableItineraries,
+                            }));
+                          }}
+                        />
+                      ))}
                   </div>
                 </div>
               ),
@@ -349,7 +368,7 @@ function ChatPage() {
         </div>
 
         <div className="border-t bg-card px-4 py-3">
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-6xl">
             {/* Suggestion Chips */}
             <div className="mb-2 flex flex-wrap gap-1.5">
               {suggestions.map((s) => (
