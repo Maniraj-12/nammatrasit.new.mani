@@ -1,0 +1,38 @@
+name: Generate full Chennai static GTFS network
+
+on:
+  push:
+    branches:
+      - feature/full-chennai-gtfs-network
+
+permissions:
+  contents: write
+
+jobs:
+  import-full-gtfs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Fetch and preprocess Chennai unified GTFS feed
+        run: |
+          if [ ! -f public/data/chennai-full-network.json ]; then
+            curl -fL --retry 4 --retry-delay 3 --max-time 180 \
+              -o /tmp/chennai-unified-gtfs.zip \
+              https://github.com/ungalsoththu/ChennaiGTFS/raw/refs/heads/main/data/chennai-unified-gtfs.zip
+            python3 -m zipfile -t /tmp/chennai-unified-gtfs.zip
+            python3 scripts/build-full-gtfs.py /tmp/chennai-unified-gtfs.zip
+          fi
+      - name: Commit generated network on feature branch
+        run: |
+          if [ -f public/data/chennai-full-network.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add public/data/chennai-full-network.json
+            if ! git diff --cached --quiet; then
+              git commit -m "data: import all available Chennai GTFS routes [skip ci]"
+              git push origin HEAD:feature/full-chennai-gtfs-network
+            fi
+          fi

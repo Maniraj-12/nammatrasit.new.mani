@@ -19,7 +19,7 @@ export function routeHighlights(options: CanonicalItinerary[]) {
         [...options].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes)[0]
       : undefined;
   const withKnownFares = options.filter((route) =>
-    Number.isFinite(route.fare.totalFare),
+    route.fare.fareDataStatus !== "unavailable" && Number.isFinite(route.fare.totalFare),
   );
   const cheapest =
     withKnownFares.length > 1

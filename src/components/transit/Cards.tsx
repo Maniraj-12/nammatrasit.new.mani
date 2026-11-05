@@ -22,7 +22,7 @@ import {
   TrainFront,
   Zap,
 } from "lucide-react";
-import type { Card, CanonicalItinerary, ComparisonItem } from "@/lib/transit/engine";
+import { fareText, type Card, type CanonicalItinerary, type ComparisonItem } from "@/lib/transit/engine";
 import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, type RouteFilter } from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 
@@ -143,14 +143,14 @@ function JourneyCard({ itinerary: j }: { itinerary: CanonicalItinerary }) {
           <div>
             <p className="font-display font-semibold text-foreground">{j.routeName}</p>
             <p className="text-xs text-muted-foreground">
-              {j.totalStops} stops · ~{j.totalDistanceKm} km
+              {j.totalStops} stops {j.totalDistanceKm > 0 ? ` · ~${j.totalDistanceKm} km` : ""}
             </p>
           </div>
           <div className="text-right">
             <p className="font-display text-base font-bold text-accent">
               ~{j.totalDurationMinutes} mins
             </p>
-            <p className="text-xs font-semibold text-foreground">₹{j.fare.totalFare}</p>
+            <p className="text-xs font-semibold text-foreground">{fareText(j.fare)}</p>
           </div>
         </div>
 
@@ -166,7 +166,7 @@ function JourneyCard({ itinerary: j }: { itinerary: CanonicalItinerary }) {
                 <span>
                   {leg.stops.length} stops (~{leg.durationMinutes} mins in-vehicle)
                 </span>
-                <span>Frequency: every {leg.frequencyMinutes}m</span>
+                <span>{leg.frequencyMinutes > 0 ? `Frequency: every ${leg.frequencyMinutes > 0 ? `${leg.frequencyMinutes}m` : "not verified"}` : "Frequency not verified"}</span>
               </div>
 
               {/* Stops toggle */}
@@ -278,7 +278,7 @@ function ComparisonCard({
                 <td className="py-2.5 font-semibold text-foreground">
                   ~{item.durationMinutes} mins
                 </td>
-                <td className="py-2.5 font-semibold text-foreground">₹{item.totalFare}</td>
+                <td className="py-2.5 font-semibold text-foreground">{item.fareStatus === "unavailable" ? "Fare unavailable" : `₹${item.totalFare}`}</td>
                 <td className="py-2.5 text-muted-foreground">
                   {item.transfers === 0 ? "Direct" : `${item.transfers} transfer`}
                 </td>
@@ -305,8 +305,10 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
       badge={
         <Badge tone={f.fareDataStatus === "estimated" ? "warn" : "neutral"}>
           <Ticket className="h-3 w-3" />
-          {f.fareDataStatus === "estimated"
-            ? "Estimated Fare — Not Verified"
+          {f.fareDataStatus === "unavailable"
+            ? "Fare Unavailable"
+            : f.fareDataStatus === "estimated"
+              ? "Estimated Fare — Not Verified"
             : f.fareDataStatus === "official_gtfs"
               ? "GTFS Fare Reference"
               : "Published Fare Reference"}
@@ -317,7 +319,7 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
         <div className="flex items-baseline justify-between rounded-xl bg-muted/60 p-3">
           <div>
             <p className="text-xs text-muted-foreground">Total Standard Fare ({j.mode})</p>
-            <p className="font-display text-2xl font-bold text-foreground">₹{f.totalFare}</p>
+            <p className="font-display text-2xl font-bold text-foreground">{fareText(f)}</p>
           </div>
           {f.discountNote && (
             <div className="text-right">
@@ -330,6 +332,7 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
 
         {/* Fare components list */}
         <div className="space-y-2">
+          {f.fareDataStatus === "unavailable" && <p className="text-xs text-muted-foreground">No verified journey-specific fare is available for this GTFS route. Confirm prices with the operator.</p>}
           {f.components.map((c, i) => (
             <div key={i} className="rounded-lg border p-2.5 text-xs">
               <div className="flex items-center justify-between font-medium">
@@ -389,7 +392,9 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
           </div>
           <p className="text-[11px] text-muted-foreground pt-1">
             Source: {f.fareSource} ·{" "}
-            {f.fareDataStatus === "estimated"
+            {f.fareDataStatus === "unavailable"
+              ? "No journey-specific operator fare is available."
+              : f.fareDataStatus === "estimated"
               ? "Operator fare has not been verified for this journey."
               : `Reference date: ${f.lastVerificationDate}.`}{" "}
             Tickets must be purchased through official channels.
@@ -629,7 +634,7 @@ export function RouteOptionsCard({
       origin + " to " + destination,
       selected.routeName,
       "Time: approximately " + selected.totalDurationMinutes + " minutes",
-      "Fare: approximately INR " + selected.fare.totalFare + " (" + selected.fare.fareDataStatus + ")",
+      "Fare: " + fareText(selected.fare) + " (" + selected.fare.fareDataStatus + ")",
       "Legs:",
       ...selected.legs.map(
         (leg, i) =>
@@ -803,7 +808,7 @@ export function RouteOptionsCard({
                   <div className="shrink-0 text-right">
                     <p className="font-display text-xl font-bold tabular-nums text-accent">~{route.totalDurationMinutes}</p>
                     <p className="text-[10px] text-muted-foreground">min</p>
-                    <p className="mt-1 text-xs font-semibold tabular-nums text-foreground">₹{route.fare.totalFare}</p>
+                    <p className="mt-1 text-xs font-semibold tabular-nums text-foreground">{fareText(route.fare)}</p>
                   </div>
                 </div>
 
@@ -849,12 +854,12 @@ export function RouteOptionsCard({
               </p>
               <h4 className="mt-1 font-display text-sm font-bold text-foreground">{selected.routeName}</h4>
               <p className="text-xs text-muted-foreground">
-                {selected.transferCount} transfer(s) · {selected.totalStops} stops · estimated {selected.totalDistanceKm} km
+                {selected.transferCount} transfer(s) · {selected.totalStops} stops{selected.totalDistanceKm > 0 ? ` · estimated ${selected.totalDistanceKm} km` : ""}
               </p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-lg font-bold text-accent">~{selected.totalDurationMinutes} min</p>
-              <p className="text-sm font-bold text-foreground">₹{selected.fare.totalFare} <span className="text-[10px] font-normal text-muted-foreground">estimated / reference</span></p>
+              <p className="text-sm font-bold text-foreground">{fareText(selected.fare)} <span className="text-[10px] font-normal text-muted-foreground">estimated / reference</span></p>
             </div>
           </div>
 

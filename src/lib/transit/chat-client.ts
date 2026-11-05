@@ -1,4 +1,5 @@
 import { respond, type ChatReply, type Context } from "./engine";
+import { respondFromFullGtfs } from "./full-gtfs-chat";
 
 export type ChatTransport = "server" | "local";
 
@@ -20,6 +21,9 @@ export async function requestTransitResponse(
   context: Context,
   sendToServer: (message: string, context: Context) => Promise<ChatReply>,
 ): Promise<ChatResult> {
+  const fullGtfsReply = await respondFromFullGtfs(message, context);
+  if (fullGtfsReply) return { reply: fullGtfsReply, transport: "local" };
+
   try {
     return { reply: await sendToServer(message, context), transport: "server" };
   } catch (error) {
