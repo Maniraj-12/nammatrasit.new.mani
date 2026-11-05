@@ -7,7 +7,7 @@ import {
 } from "./full-gtfs";
 
 const raw = JSON.parse(
-  readFileSync(new URL("../../../public/data/chennai-full-network.json", import.meta.url), "utf8"),
+  readFileSync("public/data/chennai-full-network.json", "utf8"),
 ) as FullGtfsData;
 const network = indexFullGtfs(raw);
 
