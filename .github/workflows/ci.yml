@@ -1,0 +1,31 @@
+name: NammaTransit AI - Pull Request Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [fix/strict-mode-fare-labels]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Upgrade npm to latest supported major
+        run: npm install --global npm@11
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Run unit tests
+        run: npm test
+      - name: Build application
+        run: npm run build
