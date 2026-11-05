@@ -668,383 +668,196 @@ export function planBusItinerary(origin: string, destination: string): Canonical
 // -----------------------------------------------------------------------------
 // Grounded Multimodal (Mixed-Mode) Route Planner
 // -----------------------------------------------------------------------------
+/**
+ * Compose two already planned journeys at a curated intermodal hub.
+ *
+ * Crucially, both sub-journeys may contain an internal transfer. Preserve ALL
+ * transit legs and fare components instead of using only legs[0]. Each leg
+ * represents a distinct boarding, so all changes count toward transfers.
+ */
+function composeAtIntermodalHub(
+  origin: string,
+  destination: string,
+  hubName: string,
+  hub: (typeof INTERMODAL_HUBS)[string],
+  first: CanonicalItinerary | null,
+  second: CanonicalItinerary | null,
+  firstHubStop: string | undefined,
+  secondHubStop: string | undefined,
+  idPrefix: string,
+): CanonicalItinerary | null {
+  if (!first || !second || !firstHubStop || !secondHubStop) return null;
+  if (!first.legs.length || !second.legs.length) return null;
+
+  const firstLastLeg = first.legs[first.legs.length - 1]!;
+  const secondFirstLeg = second.legs[0]!;
+
+  // A valid transfer must end at the specified first-mode stop and resume at
+  // the second-mode stop named in the curated hub mapping.
+  if (firstLastLeg.to !== firstHubStop || secondFirstLeg.from !== secondHubStop) {
+    return null;
+  }
+
+  const legs = [...first.legs, ...second.legs];
+  const modesInvolved = [...new Set(legs.map((leg) => leg.mode))];
+  if (modesInvolved.length < 2) return null;
+
+  const initialWalkMinutes = first.initialWalkMinutes ?? 0;
+  const finalWalkMinutes = second.finalWalkMinutes ?? 0;
+  const firstInternalWalk = Math.max(0, first.walkingMinutes - (first.finalWalkMinutes ?? 0));
+  const secondInternalWalk = Math.max(0, second.walkingMinutes - (second.initialWalkMinutes ?? 0));
+  const walkingMinutes = firstInternalWalk + hub.transferWalkMinutes + secondInternalWalk;
+  const waitingMinutes = first.waitingMinutes + second.waitingMinutes;
+  const inVehicleMinutes = legs.reduce((sum, leg) => sum + leg.durationMinutes, 0);
+  const transferMinutes =
+    first.transferMinutes + hub.transferWalkMinutes + second.transferMinutes;
+  const totalDurationMinutes = inVehicleMinutes + waitingMinutes + walkingMinutes;
+
+  // A bus-to-bus change inside either half is a separate boarding and should
+  // retain its own fare. Metro interchanges retain their through-ticket fare.
+  const components = [...first.fare.components, ...second.fare.components];
+  const totalFare = components.reduce((sum, item) => sum + item.amount, 0);
+  const totalStops = legs.reduce(
+    (sum, leg) => sum + Math.max(0, leg.stops.length - 1),
+    0,
+  );
+  const totalDistanceKm = Number(
+    legs.reduce((sum, leg) => sum + leg.distanceKm, 0).toFixed(1),
+  );
+  const transferPoints = [...first.transferPoints, hubName, ...second.transferPoints];
+
+  return {
+    id: `mixed-${idPrefix}-${hubName}-${origin}-${destination}`,
+    origin,
+    destination,
+    mode: "Mixed",
+    routeName: `${first.routeName} + ${second.routeName} via ${hubName}`,
+    modesInvolved,
+    legs,
+    totalStops,
+    totalDistanceKm,
+    initialWalkMinutes,
+    initialWaitMinutes: first.initialWaitMinutes ?? 0,
+    inVehicleMinutes,
+    walkingMinutes,
+    waitingMinutes,
+    transferMinutes,
+    finalWalkMinutes,
+    totalDurationMinutes,
+    timingLabel:
+      "Estimated total from journey legs, transfer walks and assumed waiting/headway times. Not live arrival data.",
+    boardingPoint: first.boardingPoint ?? first.legs[0]!.from,
+    transferDescription:
+      `Change at ${hubName}: estimated ${hub.transferWalkMinutes}-minute, ${hub.transferWalkMeters}m walk from ${firstHubStop} to ${secondHubStop}. ${hub.description}`,
+    arrivalPoint: second.arrivalPoint ?? second.legs[second.legs.length - 1]!.to,
+    fare: {
+      totalFare,
+      components,
+      fareDataStatus: "estimated",
+      fareSource: `${first.fare.fareSource}; ${second.fare.fareSource}`,
+      lastVerificationDate: [first.fare.lastVerificationDate, second.fare.lastVerificationDate]
+        .filter(Boolean)
+        .join(" / "),
+      discountNote: [first.fare.discountNote, second.fare.discountNote]
+        .filter(Boolean)
+        .join("; ") || undefined,
+    },
+    transferCount: legs.length - 1,
+    transferPoints,
+    isFastest: false,
+  };
+}
+
+/** Find combinations using only curated intermodal hubs, preserving all legs. */
 export function planMixedModeItineraries(
   origin: string,
   destination: string,
 ): CanonicalItinerary[] {
   if (origin === destination) return [];
 
-  // If a direct suburban railway corridor directly connects origin and destination (e.g. Guindy to Beach),
-  // a mixed journey is not sensible and unnecessary.
-  if (
-    (origin === "Guindy" && destination === "Chennai Beach") ||
-    (origin === "Chennai Beach" && destination === "Guindy")
-  ) {
-    return [];
-  }
-
   const mixed: CanonicalItinerary[] = [];
-  const hubNames = Object.keys(INTERMODAL_HUBS);
 
-  for (const h of hubNames) {
-    const hub = INTERMODAL_HUBS[h]!;
-    if (h === origin || h === destination) continue;
+  for (const [hubName, hub] of Object.entries(INTERMODAL_HUBS)) {
+    if (hubName === origin || hubName === destination) continue;
 
-    // Pattern 1: Bus -> Metro
-    const bus1 = planBusItinerary(origin, hub.busStop ?? h);
-    const metro2 = planMetroItinerary(hub.metroStation ?? h, destination);
-    if (bus1 && metro2 && bus1.legs[0] && metro2.legs[0]) {
-      const leg1 = bus1.legs[0];
-      const leg2 = metro2.legs[0];
-      const stopCount = leg1.stops.length - 1 + leg2.stops.length - 1;
-      const dist = Number((leg1.distanceKm + leg2.distanceKm).toFixed(1));
-      const inVeh = leg1.durationMinutes + leg2.durationMinutes;
-      const initWalk = 2;
-      const initWait = leg1.frequencyMinutes;
-      const transferWalk = hub.transferWalkMinutes;
-      const transferWait = Math.round(leg2.frequencyMinutes * 0.7);
-      const finalWalk = 2;
-      const totalDur = initWalk + initWait + inVeh + transferWalk + transferWait + finalWalk;
-      const fare1 = bus1.fare.components[0]!.amount;
-      const fare2 = metro2.fare.components[0]!.amount;
-      const totalFare = fare1 + fare2;
-
-      mixed.push({
-        id: `mixed-bus-metro-${h}-${origin}-${destination}`,
+    const add = (
+      prefix: string,
+      first: CanonicalItinerary | null,
+      second: CanonicalItinerary | null,
+      fromStop: string | undefined,
+      toStop: string | undefined,
+    ) => {
+      const result = composeAtIntermodalHub(
         origin,
         destination,
-        mode: "Mixed",
-        routeName: `MTC Bus (${leg1.routeName.split(" ")[2] || leg1.routeId}) + CMRL Metro via ${h}`,
-        modesInvolved: ["Bus", "Metro"],
-        legs: [leg1, leg2],
-        totalStops: stopCount,
-        totalDistanceKm: dist,
-        initialWalkMinutes: initWalk,
-        initialWaitMinutes: initWait,
-        inVehicleMinutes: inVeh,
-        walkingMinutes: initWalk + transferWalk + finalWalk,
-        waitingMinutes: initWait + transferWait,
-        transferMinutes: transferWalk,
-        finalWalkMinutes: finalWalk,
-        totalDurationMinutes: totalDur,
-        timingLabel: `Door-to-door estimate based on GTFS schedules, ${hub.transferWalkMeters}m transfer walk, and average headways`,
-        boardingPoint: `${origin} (${leg1.routeName})`,
-        transferDescription: `Transfer at ${h}: ~${transferWalk} min walk (${hub.transferWalkMeters}m) to CMRL Metro concourse`,
-        arrivalPoint: `${destination}`,
-        fare: {
-          totalFare,
-          components: [
-            {
-              leg: `${origin} → ${h} (${leg1.routeName})`,
-              mode: "Bus",
-              amount: fare1,
-              ticketType: bus1.fare.components[0]!.ticketType,
-            },
-            {
-              leg: `${h} → ${destination} (${leg2.routeName})`,
-              mode: "Metro",
-              amount: fare2,
-              ticketType: "Metro QR / Token",
-              notes: metro2.fare.discountNote,
-            },
-          ],
-          fareDataStatus: "estimated",
-          fareSource: "Combined MTC Government Fare Order & CMRL Official GTFS Tariff",
-          lastVerificationDate: "2026-10-04",
-          discountNote: "20% off on Metro segment with WhatsApp QR / Singara Chennai Card",
-        },
-        transferCount: 1,
-        transferPoints: [h],
-        isFastest: false,
-      });
+        hubName,
+        hub,
+        first,
+        second,
+        fromStop,
+        toStop,
+        prefix,
+      );
+      if (result) mixed.push(result);
+    };
+
+    if (hub.busStop && hub.metroStation) {
+      add(
+        "bus-metro",
+        planBusItinerary(origin, hub.busStop),
+        planMetroItinerary(hub.metroStation, destination),
+        hub.busStop,
+        hub.metroStation,
+      );
+      add(
+        "metro-bus",
+        planMetroItinerary(origin, hub.metroStation),
+        planBusItinerary(hub.busStop, destination),
+        hub.metroStation,
+        hub.busStop,
+      );
     }
 
-    // Pattern 2: Metro -> Bus
-    const metro1 = planMetroItinerary(origin, hub.metroStation ?? h);
-    const bus2 = planBusItinerary(hub.busStop ?? h, destination);
-    if (metro1 && bus2 && metro1.legs[0] && bus2.legs[0]) {
-      const leg1 = metro1.legs[0];
-      const leg2 = bus2.legs[0];
-      const stopCount = leg1.stops.length - 1 + leg2.stops.length - 1;
-      const dist = Number((leg1.distanceKm + leg2.distanceKm).toFixed(1));
-      const inVeh = leg1.durationMinutes + leg2.durationMinutes;
-      const initWalk = 2;
-      const initWait = leg1.frequencyMinutes;
-      const transferWalk = hub.transferWalkMinutes;
-      const transferWait = Math.round(leg2.frequencyMinutes * 0.7);
-      const finalWalk = 2;
-      const totalDur = initWalk + initWait + inVeh + transferWalk + transferWait + finalWalk;
-      const fare1 = metro1.fare.components[0]!.amount;
-      const fare2 = bus2.fare.components[0]!.amount;
-      const totalFare = fare1 + fare2;
-
-      mixed.push({
-        id: `mixed-metro-bus-${h}-${origin}-${destination}`,
-        origin,
-        destination,
-        mode: "Mixed",
-        routeName: `CMRL Metro + MTC Bus (${leg2.routeName.split(" ")[2] || leg2.routeId}) via ${h}`,
-        modesInvolved: ["Metro", "Bus"],
-        legs: [leg1, leg2],
-        totalStops: stopCount,
-        totalDistanceKm: dist,
-        initialWalkMinutes: initWalk,
-        initialWaitMinutes: initWait,
-        inVehicleMinutes: inVeh,
-        walkingMinutes: initWalk + transferWalk + finalWalk,
-        waitingMinutes: initWait + transferWait,
-        transferMinutes: transferWalk,
-        finalWalkMinutes: finalWalk,
-        totalDurationMinutes: totalDur,
-        timingLabel: `Door-to-door estimate based on GTFS schedules, ${hub.transferWalkMeters}m transfer walk, and average headways`,
-        boardingPoint: `${origin} (${leg1.routeName})`,
-        transferDescription: `Transfer at ${h}: ~${transferWalk} min walk (${hub.transferWalkMeters}m) to connecting bus shelter`,
-        arrivalPoint: `${destination}`,
-        fare: {
-          totalFare,
-          components: [
-            {
-              leg: `${origin} → ${h} (${leg1.routeName})`,
-              mode: "Metro",
-              amount: fare1,
-              ticketType: "Metro QR / Token",
-              notes: metro1.fare.discountNote,
-            },
-            {
-              leg: `${h} → ${destination} (${leg2.routeName})`,
-              mode: "Bus",
-              amount: fare2,
-              ticketType: bus2.fare.components[0]!.ticketType,
-            },
-          ],
-          fareDataStatus: "estimated",
-          fareSource: "Combined CMRL Official GTFS Tariff & MTC Government Fare Order",
-          lastVerificationDate: "2026-10-04",
-        },
-        transferCount: 1,
-        transferPoints: [h],
-        isFastest: false,
-      });
+    if (hub.metroStation && hub.suburbanStation) {
+      add(
+        "metro-suburban",
+        planMetroItinerary(origin, hub.metroStation),
+        planSuburbanItinerary(hub.suburbanStation, destination),
+        hub.metroStation,
+        hub.suburbanStation,
+      );
+      add(
+        "suburban-metro",
+        planSuburbanItinerary(origin, hub.suburbanStation),
+        planMetroItinerary(hub.metroStation, destination),
+        hub.suburbanStation,
+        hub.metroStation,
+      );
     }
 
-    // Pattern 3: Metro -> Suburban Rail (e.g. Koyambedu to Chennai Beach via Chennai Central/Park)
-    const metroSub1 = planMetroItinerary(origin, hub.metroStation ?? h);
-    const srr2 = planSuburbanItinerary(hub.suburbanStation ?? h, destination);
-    if (metroSub1 && srr2 && metroSub1.legs[0] && srr2.legs[0]) {
-      const leg1 = metroSub1.legs[0];
-      const leg2 = srr2.legs[0];
-      const stopCount = leg1.stops.length - 1 + leg2.stops.length - 1;
-      const dist = Number((leg1.distanceKm + leg2.distanceKm).toFixed(1));
-      const inVeh = leg1.durationMinutes + leg2.durationMinutes;
-      const initWalk = 2;
-      const initWait = leg1.frequencyMinutes;
-      const transferWalk = hub.transferWalkMinutes;
-      const transferWait = Math.round(leg2.frequencyMinutes * 0.7);
-      const finalWalk = 2;
-      const totalDur = initWalk + initWait + inVeh + transferWalk + transferWait + finalWalk;
-      const fare1 = metroSub1.fare.components[0]!.amount;
-      const fare2 = srr2.fare.components[0]!.amount;
-      const totalFare = fare1 + fare2;
-
-      mixed.push({
-        id: `mixed-metro-suburban-${h}-${origin}-${destination}`,
-        origin,
-        destination,
-        mode: "Mixed",
-        routeName: `CMRL Metro + Suburban Rail via ${h}`,
-        modesInvolved: ["Metro", "Suburban Rail"],
-        legs: [leg1, leg2],
-        totalStops: stopCount,
-        totalDistanceKm: dist,
-        initialWalkMinutes: initWalk,
-        initialWaitMinutes: initWait,
-        inVehicleMinutes: inVeh,
-        walkingMinutes: initWalk + transferWalk + finalWalk,
-        waitingMinutes: initWait + transferWait,
-        transferMinutes: transferWalk,
-        finalWalkMinutes: finalWalk,
-        totalDurationMinutes: totalDur,
-        timingLabel: `Door-to-door estimate based on GTFS schedules, ${hub.transferWalkMeters}m pedestrian subway, and headways`,
-        boardingPoint: `${origin} (Metro ${leg1.routeName})`,
-        transferDescription: `Transfer at ${h}: ~${transferWalk} min walk (${hub.transferWalkMeters}m) between ${leg1.to} and ${leg2.from}`,
-        arrivalPoint: `${destination} (${leg2.routeName})`,
-        fare: {
-          totalFare,
-          components: [
-            {
-              leg: `${origin} → ${leg1.to} (${leg1.routeName})`,
-              mode: "Metro",
-              amount: fare1,
-              ticketType: "Metro QR / Token",
-              notes: metroSub1.fare.discountNote,
-            },
-            {
-              leg: `${leg2.from} → ${destination} (${leg2.routeName})`,
-              mode: "Suburban Rail",
-              amount: fare2,
-              ticketType: "UTS Second Class Ticket",
-            },
-          ],
-          fareDataStatus: "estimated",
-          fareSource:
-            "Combined CMRL Official GTFS Tariff & Southern Railway Suburban Passenger Tariff",
-          lastVerificationDate: "2026-10-04",
-        },
-        transferCount: 1,
-        transferPoints: [h],
-        isFastest: false,
-      });
-    }
-
-    // Pattern 4: Suburban Rail -> Metro
-    const srr1 = planSuburbanItinerary(origin, hub.suburbanStation ?? h);
-    const metroSub2 = planMetroItinerary(hub.metroStation ?? h, destination);
-    if (srr1 && metroSub2 && srr1.legs[0] && metroSub2.legs[0]) {
-      const leg1 = srr1.legs[0];
-      const leg2 = metroSub2.legs[0];
-      const stopCount = leg1.stops.length - 1 + leg2.stops.length - 1;
-      const dist = Number((leg1.distanceKm + leg2.distanceKm).toFixed(1));
-      const inVeh = leg1.durationMinutes + leg2.durationMinutes;
-      const initWalk = 2;
-      const initWait = leg1.frequencyMinutes;
-      const transferWalk = hub.transferWalkMinutes;
-      const transferWait = Math.round(leg2.frequencyMinutes * 0.7);
-      const finalWalk = 2;
-      const totalDur = initWalk + initWait + inVeh + transferWalk + transferWait + finalWalk;
-      const fare1 = srr1.fare.components[0]!.amount;
-      const fare2 = metroSub2.fare.components[0]!.amount;
-      const totalFare = fare1 + fare2;
-
-      mixed.push({
-        id: `mixed-suburban-metro-${h}-${origin}-${destination}`,
-        origin,
-        destination,
-        mode: "Mixed",
-        routeName: `Suburban Rail + CMRL Metro via ${h}`,
-        modesInvolved: ["Suburban Rail", "Metro"],
-        legs: [leg1, leg2],
-        totalStops: stopCount,
-        totalDistanceKm: dist,
-        initialWalkMinutes: initWalk,
-        initialWaitMinutes: initWait,
-        inVehicleMinutes: inVeh,
-        walkingMinutes: initWalk + transferWalk + finalWalk,
-        waitingMinutes: initWait + transferWait,
-        transferMinutes: transferWalk,
-        finalWalkMinutes: finalWalk,
-        totalDurationMinutes: totalDur,
-        timingLabel: `Door-to-door estimate based on GTFS schedules, ${hub.transferWalkMeters}m pedestrian connection, and headways`,
-        boardingPoint: `${origin} (${leg1.routeName})`,
-        transferDescription: `Transfer at ${h}: ~${transferWalk} min walk (${hub.transferWalkMeters}m) to Metro platform`,
-        arrivalPoint: `${destination}`,
-        fare: {
-          totalFare,
-          components: [
-            {
-              leg: `${origin} → ${leg1.to} (${leg1.routeName})`,
-              mode: "Suburban Rail",
-              amount: fare1,
-              ticketType: "UTS Second Class Ticket",
-            },
-            {
-              leg: `${leg2.from} → ${destination} (${leg2.routeName})`,
-              mode: "Metro",
-              amount: fare2,
-              ticketType: "Metro QR / Token",
-              notes: metroSub2.fare.discountNote,
-            },
-          ],
-          fareDataStatus: "estimated",
-          fareSource: "Combined Southern Railway Suburban Tariff & CMRL Official GTFS Tariff",
-          lastVerificationDate: "2026-10-04",
-        },
-        transferCount: 1,
-        transferPoints: [h],
-        isFastest: false,
-      });
-    }
-
-    // Pattern 5: Bus -> Suburban Rail (e.g. Anna Nagar Tower to Chennai Beach via Guindy)
-    const busSRR1 = planBusItinerary(origin, hub.busStop ?? h);
-    const srrBus2 = planSuburbanItinerary(hub.suburbanStation ?? h, destination);
-    if (busSRR1 && srrBus2 && busSRR1.legs[0] && srrBus2.legs[0]) {
-      const leg1 = busSRR1.legs[0];
-      const leg2 = srrBus2.legs[0];
-      const stopCount = leg1.stops.length - 1 + leg2.stops.length - 1;
-      const dist = Number((leg1.distanceKm + leg2.distanceKm).toFixed(1));
-      const inVeh = leg1.durationMinutes + leg2.durationMinutes;
-      const initWalk = 2;
-      const initWait = leg1.frequencyMinutes;
-      const transferWalk = hub.transferWalkMinutes;
-      const transferWait = Math.round(leg2.frequencyMinutes * 0.7);
-      const finalWalk = 2;
-      const totalDur = initWalk + initWait + inVeh + transferWalk + transferWait + finalWalk;
-      const fare1 = busSRR1.fare.components[0]!.amount;
-      const fare2 = srrBus2.fare.components[0]!.amount;
-      const totalFare = fare1 + fare2;
-
-      mixed.push({
-        id: `mixed-bus-suburban-${h}-${origin}-${destination}`,
-        origin,
-        destination,
-        mode: "Mixed",
-        routeName: `MTC Bus + Suburban Rail via ${h}`,
-        modesInvolved: ["Bus", "Suburban Rail"],
-        legs: [leg1, leg2],
-        totalStops: stopCount,
-        totalDistanceKm: dist,
-        initialWalkMinutes: initWalk,
-        initialWaitMinutes: initWait,
-        inVehicleMinutes: inVeh,
-        walkingMinutes: initWalk + transferWalk + finalWalk,
-        waitingMinutes: initWait + transferWait,
-        transferMinutes: transferWalk,
-        finalWalkMinutes: finalWalk,
-        totalDurationMinutes: totalDur,
-        timingLabel: `Door-to-door estimate based on GTFS schedules, ${hub.transferWalkMeters}m transfer walk, and headways`,
-        boardingPoint: `${origin} (${leg1.routeName})`,
-        transferDescription: `Transfer at ${h}: ~${transferWalk} min walk (${hub.transferWalkMeters}m) to railway station`,
-        arrivalPoint: `${destination}`,
-        fare: {
-          totalFare,
-          components: [
-            {
-              leg: `${origin} → ${leg1.to} (${leg1.routeName})`,
-              mode: "Bus",
-              amount: fare1,
-              ticketType: busSRR1.fare.components[0]!.ticketType,
-            },
-            {
-              leg: `${leg2.from} → ${destination} (${leg2.routeName})`,
-              mode: "Suburban Rail",
-              amount: fare2,
-              ticketType: "UTS Second Class Ticket",
-            },
-          ],
-          fareDataStatus: "estimated",
-          fareSource: "Combined MTC Government Fare Order & Southern Railway Suburban Tariff",
-          lastVerificationDate: "2026-10-04",
-        },
-        transferCount: 1,
-        transferPoints: [h],
-        isFastest: false,
-      });
+    if (hub.busStop && hub.suburbanStation) {
+      add(
+        "bus-suburban",
+        planBusItinerary(origin, hub.busStop),
+        planSuburbanItinerary(hub.suburbanStation, destination),
+        hub.busStop,
+        hub.suburbanStation,
+      );
     }
   }
 
-  // Deduplicate mixed routes by unique signature: modes + transfer point + routeId
-  const uniqueMixed: CanonicalItinerary[] = [];
-  const seenSigs = new Set<string>();
-  for (const m of mixed) {
-    const sig = `${m.modesInvolved?.join("-")}_${m.transferPoints.join("-")}_${m.legs.map((l) => l.routeId).join("-")}`;
-    if (!seenSigs.has(sig)) {
-      seenSigs.add(sig);
-      uniqueMixed.push(m);
-    }
+  const seen = new Set<string>();
+  const distinct: CanonicalItinerary[] = [];
+  for (const itinerary of mixed) {
+    const signature = itinerary.legs
+      .map((leg) => `${leg.mode}:${leg.routeId}:${leg.from}:${leg.to}`)
+      .join("|");
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    distinct.push(itinerary);
   }
 
-  uniqueMixed.sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes);
-  return uniqueMixed;
+  return distinct.sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes);
 }
 
 // -----------------------------------------------------------------------------
