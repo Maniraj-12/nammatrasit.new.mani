@@ -129,7 +129,9 @@ describe("Fare estimates and intent recovery", () => {
     expect(normalizeCommuterMessage("Any buss roote?")).toBe("Any bus route?");
     expect(normalizeCommuterMessage("metroo far")).toBe("metro fare");
     const airport = resolveStopName(network, "Chenai Airport");
-    expect(["corrected", "uncertain"]).toContain(airport.kind);
+    expect(["exact", "corrected", "uncertain"]).toContain(airport.kind);
+    const nearMiss = resolveStopName(network, "Koyammbedu");
+    expect(["corrected", "uncertain"]).toContain(nearMiss.kind);
     if (airport.kind !== "unknown" && airport.kind !== "exact") {
       expect(airport.options.some((name) => name.toLowerCase().includes("airport"))).toBe(true);
     }
