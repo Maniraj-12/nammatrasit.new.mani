@@ -10,7 +10,7 @@ import type { CanonicalItinerary, JourneyLeg } from "./engine";
 import type { TransportMode } from "./data";
 import { coordinateDistanceKm, estimateFullGtfsFare } from "./estimated-fares";
 
-export type GtfsStop = [id: string, name: string, lat: number | null, lon: number | null, mode: TransportMode, parent: string];
+export type GtfsStop = [id: string, name: string, lat: number | null, lon: number | null, mode: TransportMode, parent: string, fareZone?: string];
 export type GtfsRoute = [id: string, shortName: string, longName: string, mode: TransportMode];
 export type GtfsPattern = [routeIndex: number, stopIndices: number[], segmentMinutes: number[], direction: string, serviceId: string];
 export type GtfsWalk = [from: number, to: number, minutes: number, source: string];
