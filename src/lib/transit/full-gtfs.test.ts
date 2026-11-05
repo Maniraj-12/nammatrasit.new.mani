@@ -4,6 +4,7 @@ import { fareText, type JourneyLeg } from "./engine";
 import { estimateFullGtfsFare } from "./estimated-fares";
 import { normalizeCommuterMessage, resolveStopName } from "./intent-recovery";
 import { filterRouteOptions, routeHighlights } from "./route-options";
+import { samePhysicalJourney } from "./deduplicate-journeys";
 import {
   findFullStops, indexFullGtfs, lookupGtfsRoutes, planFullGtfs, type FullGtfsData,
 } from "./full-gtfs";
@@ -136,4 +137,19 @@ describe("Fare estimates and intent recovery", () => {
       expect(airport.options.some((name) => name.toLowerCase().includes("airport"))).toBe(true);
     }
   });
+});
+
+describe("Regression: Koyambedu to Airport duplicate Metro cards", () => {
+  it("returns unique geographic Metro journeys, not six stop-time variants", () => {
+    const options = planFullGtfs(network, "Koyambedu", "Chennai Airport", "Metro", 6);
+    expect(options.length).toBeGreaterThan(0);
+    for (let i = 0; i < options.length; i++) {
+      for (let j = i + 1; j < options.length; j++) {
+        expect(samePhysicalJourney(options[i]!, options[j]!)).toBe(false);
+      }
+    }
+    // The reported issue is six duplicated cards for this exact city pair.
+    // If there are genuinely different geographic paths, they may remain.
+    expect(options.length).toBeLessThan(6);
+  }, 20000);
 });
