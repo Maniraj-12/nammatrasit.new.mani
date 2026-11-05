@@ -20,6 +20,7 @@ import {
 import { Brand, Disclaimer } from "@/components/transit/Brand";
 import { ResultCard } from "@/components/transit/Cards";
 import { sendChat } from "@/lib/transit/chat.functions";
+import { requestTransitResponse } from "@/lib/transit/chat-client";
 import type { Card, Context } from "@/lib/transit/engine";
 
 export const Route = createFileRoute("/chat")({
@@ -83,6 +84,7 @@ function ChatPage() {
   const [suggestions, setSuggestions] = useState(START_CHIPS);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [usingLocalPlanner, setUsingLocalPlanner] = useState(false);
   const [open, setOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -114,7 +116,13 @@ function ChatPage() {
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", text: msg }]);
     setLoading(true);
     try {
-      const r = await sendChat({ data: { message: msg, context } });
+      const { reply: r, transport } = await requestTransitResponse(
+        msg,
+        context,
+        (message, previousContext) =>
+          sendChat({ data: { message, context: previousContext } }),
+      );
+      setUsingLocalPlanner(transport === "local");
       setContext(r.context);
       setSuggestions(r.suggestions);
       setMessages((m) => [
@@ -141,6 +149,7 @@ function ChatPage() {
     setMessages([WELCOME]);
     setContext({});
     setSuggestions(START_CHIPS);
+    setUsingLocalPlanner(false);
     setOpen(false);
     inputRef.current?.focus();
   }
@@ -286,6 +295,16 @@ function ChatPage() {
             </div>
           )}
         </header>
+        {usingLocalPlanner && (
+          <div
+            role="status"
+            className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900"
+          >
+            Server chat is unavailable in this preview. Using the local Chennai
+            route planner with static data and estimated timings/fare guidance.
+            No live service information is available.
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto" aria-live="polite">
           <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
