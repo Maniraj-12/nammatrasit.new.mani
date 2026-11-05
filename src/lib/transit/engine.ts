@@ -63,6 +63,8 @@ export type JourneyLeg = {
   distanceKm: number;
   frequencyMinutes: number;
   stopCoordinates?: Array<[number, number]>;
+  pathCoordinates?: Array<[number, number]>;
+  pathSource?: "gtfs-shape" | "road-router";
 };
 
 export type CanonicalItinerary = {
