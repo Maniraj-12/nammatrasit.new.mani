@@ -19,7 +19,7 @@ import {
   type TransportMode,
 } from "./data";
 
-export type FareDataStatus = "official_gtfs" | "published_tariff" | "estimated";
+export type FareDataStatus = "official_gtfs" | "published_tariff" | "estimated" | "unavailable";
 
 export type FareComponent = {
   leg: string;
@@ -37,6 +37,11 @@ export type CanonicalFare = {
   lastVerificationDate: string;
   discountNote?: string;
 };
+
+/** A missing fare is never the same as a free ticket. */
+export function fareText(fare: CanonicalFare): string {
+  return fare.fareDataStatus === "unavailable" ? "Fare unavailable" : `₹${fare.totalFare}`;
+}
 
 export type JourneyLeg = {
   mode: TransportMode;
@@ -94,6 +99,7 @@ export type ComparisonItem = {
   routeName: string;
   durationMinutes: number;
   totalFare: number;
+  fareStatus?: FareDataStatus;
   transfers: number;
   frequency: string;
   isFastest: boolean;
@@ -931,6 +937,7 @@ export function buildComparisonItems(itineraries: CanonicalItinerary[]): Compari
     routeName: it.routeName,
     durationMinutes: it.totalDurationMinutes,
     totalFare: it.fare.totalFare,
+    fareStatus: it.fare.fareDataStatus,
     transfers: it.transferCount,
     frequency: it.legs.map((l) => `Every ${l.frequencyMinutes}m`).join(", "),
     isFastest: it.isFastest,
@@ -1245,7 +1252,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       ctx.lastReferencedItineraryId = prevId;
       ctx.activeItineraryId = target.id;
 
-      const reply = `Selected **Option ${target.optionIndex ?? optIndex}: ${target.routeName}** (${target.mode}, ~${target.totalDurationMinutes} mins, ₹${target.fare.totalFare}). Here are the details for this journey:`;
+      const reply = `Selected **Option ${target.optionIndex ?? optIndex}: ${target.routeName}** (${target.mode}, ~${target.totalDurationMinutes} mins, ${fareText(target.fare)}). Here are the details for this journey:`;
 
       return {
         reply,
@@ -1297,7 +1304,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
         ctx.activeItineraryId = prev.id;
         ctx.lastReferencedItineraryId = curId;
 
-        const reply = `Returned to previous option: **Option ${prev.optionIndex ?? 1}: ${prev.routeName}** (${prev.mode}, ~${prev.totalDurationMinutes} mins, ₹${prev.fare.totalFare}).`;
+        const reply = `Returned to previous option: **Option ${prev.optionIndex ?? 1}: ${prev.routeName}** (${prev.mode}, ~${prev.totalDurationMinutes} mins, ${fareText(prev.fare)}).`;
 
         return {
           reply,
@@ -1357,11 +1364,11 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
         .slice(0, 3)
         .map(
           (it) =>
-            `Option ${it.optionIndex}: ${it.routeName} takes ~${it.totalDurationMinutes} mins (₹${it.fare.totalFare})`,
+            `Option ${it.optionIndex}: ${it.routeName} takes ~${it.totalDurationMinutes} mins (${fareText(it.fare)})`,
         )
         .join("; ");
 
-      const reply = `The fastest option from ${ctx.origin} to ${ctx.destination} is **Option ${fastest.optionIndex ?? 1}: ${fastest.routeName}** (${fastest.mode}) with an estimated total door-to-door duration of **${fastest.totalDurationMinutes} minutes** (inclusive of headway and walk; fare ₹${fastest.fare.totalFare}). ${otherModesText ? `Other available options: ${otherModesText}.` : ""}`;
+      const reply = `The fastest option from ${ctx.origin} to ${ctx.destination} is **Option ${fastest.optionIndex ?? 1}: ${fastest.routeName}** (${fastest.mode}) with an estimated total door-to-door duration of **${fastest.totalDurationMinutes} minutes** (inclusive of headway and walk; fare ${fareText(fastest.fare)}). ${otherModesText ? `Other available options: ${otherModesText}.` : ""}`;
 
       return {
         reply,
@@ -1471,7 +1478,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       const modesList = allItineraries
         .map(
           (it) =>
-            `Option ${it.optionIndex}: ${it.mode} (~${it.totalDurationMinutes}m, ₹${it.fare.totalFare})`,
+            `Option ${it.optionIndex}: ${it.mode} (~${it.totalDurationMinutes}m, ${fareText(it.fare)})`,
         )
         .join("; ");
       const msg = `Here are all available transport options from ${ctx.origin} to ${ctx.destination}: ${modesList}.`;
@@ -1513,7 +1520,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
           m.optionIndex = i + 1;
         });
         const singleMixed = { ...topMixed[0]!, isFastest: false };
-        const msg = `Here is the mixed-mode option from **${ctx.origin}** to **${ctx.destination}**: **${singleMixed.routeName}** (${singleMixed.modesInvolved?.join(" + ") || "Multimodal"}). Estimated door-to-door duration is **${singleMixed.totalDurationMinutes} minutes** with an estimated, unverified fare of **₹${singleMixed.fare.totalFare}**.`;
+        const msg = `Here is the mixed-mode option from **${ctx.origin}** to **${ctx.destination}**: **${singleMixed.routeName}** (${singleMixed.modesInvolved?.join(" + ") || "Multimodal"}). Estimated door-to-door duration is **${singleMixed.totalDurationMinutes} minutes** with an estimated, unverified fare of **${fareText(singleMixed.fare)}**.`;
         return {
           reply: msg,
           message: msg,
@@ -1584,7 +1591,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       const bus = planBusItinerary(ctx.origin, ctx.destination);
       if (bus) {
         const singleBus = { ...bus, isFastest: false, optionIndex: 1 };
-        const msg = `Here is the MTC bus route from ${ctx.origin} to ${ctx.destination}: **${singleBus.routeName}**. Estimated duration is **${singleBus.totalDurationMinutes} minutes** (${singleBus.totalStops} stops) with an estimated, unverified fare of **₹${singleBus.fare.totalFare}**.`;
+        const msg = `Here is the MTC bus route from ${ctx.origin} to ${ctx.destination}: **${singleBus.routeName}**. Estimated duration is **${singleBus.totalDurationMinutes} minutes** (${singleBus.totalStops} stops) with an estimated, unverified fare of **${fareText(singleBus.fare)}**.`;
         return {
           reply: msg,
           message: msg,
@@ -1639,7 +1646,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       const srr = planSuburbanItinerary(ctx.origin, ctx.destination);
       if (srr) {
         const singleSrr = { ...srr, isFastest: false, optionIndex: 1 };
-        const msg = `Here is the Southern Railway Suburban option from ${ctx.origin} to ${ctx.destination}: **${singleSrr.routeName}**. Estimated travel time is **${singleSrr.totalDurationMinutes} minutes** (${singleSrr.totalStops} stops) with a fare of **₹${singleSrr.fare.totalFare}**.`;
+        const msg = `Here is the Southern Railway Suburban option from ${ctx.origin} to ${ctx.destination}: **${singleSrr.routeName}**. Estimated travel time is **${singleSrr.totalDurationMinutes} minutes** (${singleSrr.totalStops} stops) with a fare of **${fareText(singleSrr.fare)}**.`;
         return {
           reply: msg,
           message: msg,
@@ -1694,7 +1701,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       const metro = planMetroItinerary(ctx.origin, ctx.destination);
       if (metro) {
         const singleMetro = { ...metro, isFastest: false, optionIndex: 1 };
-        const msg = `Here is the Chennai Metro route from ${ctx.origin} to ${ctx.destination}: **${singleMetro.routeName}**. Estimated duration is **${singleMetro.totalDurationMinutes} minutes** (${singleMetro.totalStops} stops) with a fare of **₹${singleMetro.fare.totalFare}** (${singleMetro.fare.discountNote || "20% QR discount"}).`;
+        const msg = `Here is the Chennai Metro route from ${ctx.origin} to ${ctx.destination}: **${singleMetro.routeName}**. Estimated duration is **${singleMetro.totalDurationMinutes} minutes** (${singleMetro.totalStops} stops) with a fare of **${fareText(singleMetro.fare)}** (${singleMetro.fare.discountNote || "20% QR discount"}).`;
         return {
           reply: msg,
           message: msg,
@@ -1770,8 +1777,8 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       allItineraries[0];
 
     if (active) {
-      const fareLabel = active.fare.fareDataStatus === "estimated" ? "estimated, unverified" : "reference";
-      const reply = `For your journey from ${active.origin} to ${active.destination} via **Option ${active.optionIndex ?? 1} (${active.routeName})**, the total ${fareLabel} standard fare is **₹${active.fare.totalFare}** (${active.fare.fareSource}). ${active.fare.discountNote ? `(${active.fare.discountNote})` : ""}`;
+      const fareLabel = active.fare.fareDataStatus === "estimated" ? "estimated, unverified" : active.fare.fareDataStatus === "unavailable" ? "currently unavailable" : "reference";
+      const reply = `For your journey from ${active.origin} to ${active.destination} via **Option ${active.optionIndex ?? 1} (${active.routeName})**, the journey fare is **${fareText(active.fare)}** (${fareLabel}) (${active.fare.fareSource}). ${active.fare.discountNote ? `(${active.fare.discountNote})` : ""}`;
       return {
         reply,
         message: reply,
@@ -1848,7 +1855,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
         ? ` with a transfer at ${preferred.transferPoints.join(", ")}`
         : " directly";
 
-    const reply = `I found **${allItineraries.length} route options** from **${origin}** to **${destination}**. The recommended route is **Option ${preferred.optionIndex ?? 1}: ${preferred.routeName}** via ${preferred.mode}${viaText} (${preferred.totalStops} stops, est. ~${preferred.totalDurationMinutes} mins, fare ₹${preferred.fare.totalFare}). You can select another option below or ask "Which one is fastest?".`;
+    const reply = `I found **${allItineraries.length} route options** from **${origin}** to **${destination}**. The recommended route is **Option ${preferred.optionIndex ?? 1}: ${preferred.routeName}** via ${preferred.mode}${viaText} (${preferred.totalStops} stops, est. ~${preferred.totalDurationMinutes} mins, fare ${fareText(preferred.fare)}). You can select another option below or ask "Which one is fastest?".`;
 
     return {
       reply,
