@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, MapPinned, RefreshCcw, Route, TrafficCone } from "lucide-react";
+import { AlertTriangle, RefreshCcw, Route, TrafficCone } from "lucide-react";
 import type { CanonicalItinerary } from "@/lib/transit/engine";
 import { buildTrafficRequest } from "@/lib/transit/traffic/logic";
 import type { TrafficCompareResponse, TrafficResult } from "@/lib/transit/traffic/types";
@@ -246,9 +246,7 @@ export function GoogleTrafficComparison({
         </p>
       )}
       <p className="text-[11px] text-muted-foreground">
-        {response?.disclaimer ??
-          "Traffic checking is optional. It requires Google Maps billing and a working server-side API.
-           Road congestion is applied to buses only; Metro and suburban estimates exclude live train delays."}
+        {response?.disclaimer ?? "Traffic checking is optional. It requires Google Maps billing and a working server-side API. Road congestion is applied to buses only; Metro and suburban estimates exclude live train delays."}
       </p>
       <p className="text-[11px] text-muted-foreground">
         <Route className="mr-1 inline h-3 w-3" />
