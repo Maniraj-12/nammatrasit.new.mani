@@ -5,6 +5,7 @@ import {
   itineraryMapSegments, type TransitMapSegment,
 } from "@/lib/transit/route-map-data";
 import { roadAlignedBusPath } from "@/lib/transit/road-routing";
+import { LiveArrivalStatus } from "./LiveArrivalStatus";
 import "leaflet/dist/leaflet.css";
 
 /**
@@ -184,11 +185,12 @@ export function RouteMap({ itinerary }: { itinerary: CanonicalItinerary }) {
       <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
         <div className="flex items-center gap-2 font-semibold">
           <RadioTower className="h-4 w-4" />
-          Live vehicle locations and arrival countdowns: unavailable
+          Live tracking requires an authorised data provider
         </div>
         <p className="mt-1">
-          No authorised GTFS-Realtime or operator API has been connected. A road-aligned route line does not indicate a live vehicle position or ETA.
+          The provider integration is permission-gated. Road-aligned route lines are static, not live vehicle positions or arrival predictions.
         </p>
+        <LiveArrivalStatus itinerary={itinerary} />
         <div className="mt-2 flex flex-wrap gap-3">
           {modes.includes("Bus") && (
             <a href="https://mtcbus.tn.gov.in/" target="_blank" rel="noreferrer"

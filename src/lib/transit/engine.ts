@@ -65,6 +65,10 @@ export type JourneyLeg = {
   stopCoordinates?: Array<[number, number]>;
   pathCoordinates?: Array<[number, number]>;
   pathSource?: "gtfs-shape" | "road-router";
+  /** Real source GTFS identifiers required to select a live trip/stop. */
+  boardingStopId?: string;
+  alightingStopId?: string;
+  directionId?: "0" | "1";
 };
 
 export type CanonicalItinerary = {
