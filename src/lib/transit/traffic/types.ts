@@ -26,7 +26,7 @@ export type TrafficResult = {
   googleBusRoutePolylines: string[];
 };
 export type TrafficCompareResponse = {
-  provider: "Google Maps Routes API" | null;
+  provider: "Google Maps Routes API" | "TomTom Routing API v1" | null;
   requestedAt: string;
   sourceStatus: "LIVE_ROAD_TRAFFIC" | "UNAVAILABLE";
   journeys: TrafficResult[];

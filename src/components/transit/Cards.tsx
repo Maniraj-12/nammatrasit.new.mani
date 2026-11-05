@@ -26,7 +26,7 @@ import { fareText, type Card, type CanonicalItinerary, type ComparisonItem } fro
 import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, type RouteFilter } from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 import { RouteMap } from "./RouteMap";
-import { GoogleTrafficComparison } from "./GoogleTrafficComparison";
+import { TomTomTrafficComparison } from "./TomTomTrafficComparison";
 
 const Badge = ({
   children,
@@ -889,9 +889,10 @@ export function RouteOptionsCard({
               Compare current road traffic
             </button>
           </div>
-          {trafficMode
-            ? <GoogleTrafficComparison options={options} selectedId={selected.id} onSelect={selectRoute} />
-            : <RouteMap itinerary={selected} />}
+          <RouteMap itinerary={selected} />
+          {trafficMode && <TomTomTrafficComparison
+            options={options} selectedId={selected.id} onSelect={selectRoute}
+          />}
 
           <ol className="mt-3 space-y-3">
             {selected.legs.map((leg, index) => {
