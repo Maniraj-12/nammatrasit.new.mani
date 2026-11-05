@@ -94,6 +94,7 @@ def build(input_zip, output_path):
             parse_coord(item.get("stop_lat")), parse_coord(item.get("stop_lon")),
             system_for_id(sid),
             item.get("parent_station") or "",
+            item.get("zone_id") or "",  # GTFS CMRL fare zone, distinct from station/stop ID
         ])
 
     routes = []
