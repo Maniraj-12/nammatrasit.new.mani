@@ -59,3 +59,18 @@ describe("Complete Chennai unified GTFS feed", () => {
     expect(routeHighlights(result).cheapestId).toBeUndefined();
   });
 });
+
+describe("Chennai commuter journey smoke checks", () => {
+  it("searches the real unified feed for Koyambedu to Chennai Airport", () => {
+    const routes = planFullGtfs(network, "Koyambedu", "Chennai Airport", "All", 4);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes[0]?.legs.length).toBeGreaterThan(0);
+    expect(routes.every((r) => r.fare.fareDataStatus === "unavailable")).toBe(true);
+  }, 15000);
+
+  it("finds suburban travel from Guindy to Chennai Beach", () => {
+    const routes = planFullGtfs(network, "Guindy", "Chennai Beach", "Suburban Rail", 3);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.every((r) => r.legs.every((leg) => leg.mode === "Suburban Rail"))).toBe(true);
+  }, 15000);
+});
