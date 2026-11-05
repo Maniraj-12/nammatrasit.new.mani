@@ -74,6 +74,9 @@ def build(input_zip, output_path):
         fare_rules_raw = read_csv(zf, "fare_rules.txt") if any(p.endswith("fare_rules.txt") for p in zf.namelist()) else []
         routes_raw = read_csv(zf, "routes.txt")
         trips_raw = read_csv(zf, "trips.txt")
+        shapes_raw = read_csv(zf, "shapes.txt") if any(
+            p.endswith("shapes.txt") for p in zf.namelist()
+        ) else []
         stop_times_raw = read_csv(zf, "stop_times.txt")
         transfers_raw = read_csv(zf, "transfers.txt") if any(
             p.endswith("transfers.txt") for p in zf.namelist()
@@ -111,13 +114,33 @@ def build(input_zip, output_path):
             system_for_id(rid),
         ])
 
+    shapes_by_id = defaultdict(list)
+    for item in shapes_raw:
+        shape_id = item.get("shape_id", "").strip()
+        if not shape_id:
+            continue
+        lat = parse_coord(item.get("shape_pt_lat"))
+        lon = parse_coord(item.get("shape_pt_lon"))
+        try:
+            seq = int(item.get("shape_pt_sequence", ""))
+        except (ValueError, TypeError):
+            continue
+        if lat is not None and lon is not None and -90 <= lat <= 90 and -180 <= lon <= 180:
+            shapes_by_id[shape_id].append((seq, lat, lon))
+    shapes = {}
+    for shape_id, points in shapes_by_id.items():
+        ordered = sorted(points, key=lambda row: row[0])
+        if len(ordered) >= 2:
+            shapes[shape_id] = [[lat, lon] for _, lat, lon in ordered]
+
     trips = {}
     for item in trips_raw:
         trip_id = item.get("trip_id", "")
         route_idx = route_indices.get(item.get("route_id", ""))
         if trip_id and route_idx is not None:
             trips[trip_id] = (
-                route_idx, item.get("direction_id", ""), item.get("service_id", "")
+                route_idx, item.get("direction_id", ""), item.get("service_id", ""),
+                item.get("shape_id", ""),
             )
 
     by_trip = defaultdict(list)
@@ -141,7 +164,7 @@ def build(input_zip, output_path):
     unique_patterns = {}
     valid_trip_count = 0
     for trip_id, samples in by_trip.items():
-        route_idx, direction, service = trips[trip_id]
+        route_idx, direction, service, shape_id = trips[trip_id]
         samples.sort(key=lambda row: row[0])
         indices = [s[1] for s in samples]
         if len(indices) < 2:
@@ -154,7 +177,7 @@ def build(input_zip, output_path):
         signature = (route_idx, direction, tuple(indices))
         valid_trip_count += 1
         if signature not in unique_patterns:
-            unique_patterns[signature] = [route_idx, indices, durations, direction, service]
+            unique_patterns[signature] = [route_idx, indices, durations, direction, service, shape_id]
 
     patterns = list(unique_patterns.values())
 
@@ -245,10 +268,17 @@ def build(input_zip, output_path):
         "validTrips": valid_trip_count,
         "patternCount": len(patterns),
         "stopTimeCount": len(stop_times_raw),
+        "shapeCount": len(shapes),
+        "shapePointCount": sum(len(points) for points in shapes.values()),
+        "shapeMappedPatterns": sum(1 for p in patterns if p[5] in shapes),
+        "shapeMappedByMode": {
+            mode: sum(1 for p in patterns if routes[p[0]][3] == mode and p[5] in shapes)
+            for mode in ("Bus", "Metro", "Suburban Rail")
+        },
         "walkConnectionCount": len(connections),
         "status": "Historical/structural schedules only: CMRL service calendar expired in 2021; MTC scraped 2026-04; SRR service patterns not live departures",
     }
-    payload = {"metadata": metadata, "stops": stops, "routes": routes, "patterns": patterns, "walks": connections, "metroFareByZone": metro_fares}
+    payload = {"metadata": metadata, "stops": stops, "routes": routes, "patterns": patterns, "walks": connections, "metroFareByZone": metro_fares, "shapes": shapes}
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as out:
