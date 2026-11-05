@@ -83,7 +83,7 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
       };
     }
     return {
-      reply: "These are your currently available journeys. Open **Compare current road traffic** beneath the selected journey to request Google's congestion-aware estimate for MTC bus legs. Metro and suburban journey times are still static estimates, not live train ETAs. Google Maps and its API must be configured before traffic checks work.",
+      reply: "These are your currently available journeys. Open **Compare current road traffic** beneath the selected journey to request TomTom's live-versus-historical congestion estimate for MTC bus legs. Metro and suburban journey times are still static estimates, not live train ETAs. The TomTom API key must be configured securely on your server before traffic checks work. No Google Cloud billing is needed.",
       cards: [
         { kind: "route_options" as const, options: choices,
           origin: ctx.origin, destination: ctx.destination,
