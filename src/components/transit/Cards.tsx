@@ -619,7 +619,7 @@ export function RouteOptionsCard({
 
   const chooseFilter = (next: RouteFilter) => {
     setFilter(next);
-    slider.current?.scrollTo({ left: 0, behavior: "smooth" });
+    slider.current?.scrollTo?.({ left: 0, behavior: "smooth" });
   };
 
   const shareJourney = async () => {
@@ -723,12 +723,12 @@ export function RouteOptionsCard({
         <p className="text-[11px] text-muted-foreground">Select a card to compare. Swipe sideways for more routes.</p>
         <div className="flex shrink-0 gap-1">
           <button type="button" aria-label="Scroll route cards left"
-            onClick={() => slider.current?.scrollBy({ left: -310, behavior: "smooth" })}
+            onClick={() => slider.current?.scrollBy?.({ left: -310, behavior: "smooth" })}
             className="rounded-full border border-border p-1.5 text-muted-foreground hover:bg-muted">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button type="button" aria-label="Scroll route cards right"
-            onClick={() => slider.current?.scrollBy({ left: 310, behavior: "smooth" })}
+            onClick={() => slider.current?.scrollBy?.({ left: 310, behavior: "smooth" })}
             className="rounded-full border border-border p-1.5 text-muted-foreground hover:bg-muted">
             <ChevronRight className="h-4 w-4" />
           </button>
