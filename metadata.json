@@ -1,0 +1,5 @@
+{
+  "name": "NammaTransit AI",
+  "description": "Conversational assistant for Chennai public transport.",
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
