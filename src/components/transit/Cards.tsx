@@ -23,13 +23,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { Card, CanonicalItinerary, ComparisonItem } from "@/lib/transit/engine";
-import {
-  ROUTE_FILTERS,
-  filterRouteOptions,
-  routeFilterCounts,
-  routeHighlights,
-  type RouteFilter,
-} from "@/lib/transit/route-options";
+import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, type RouteFilter } from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 
 const Badge = ({
@@ -565,7 +559,17 @@ function GrievanceCard({ card }: { card: Extract<Card, { kind: "grievance" }> })
             href={card.link}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full bexport function RouteOptionsCard({
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted"
+          >
+            Official Grievance Portal <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+export function RouteOptionsCard({
   options,
   activeItineraryId,
   origin,
