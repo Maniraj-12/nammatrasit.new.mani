@@ -281,3 +281,19 @@ describe("Original Regression Scenarios — Guindy to Chennai Beach Conversation
     expect(t4.cards.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+
+describe("Estimated fare labeling regression", () => {
+  it("labels MTC stop-count fare estimates as unverified", () => {
+    const bus = planBusItinerary("Koyambedu", "Guindy");
+    expect(bus).not.toBeNull();
+    expect(bus?.fare.fareDataStatus).toBe("estimated");
+
+    const first = respond("Koyambedu to Guindy");
+    const selected = respond("Is there a bus route?", first.context);
+    expect(selected.requestedMode).toBe("Bus");
+    const fare = respond("How much is the fare?", selected.context);
+    expect(fare.reply.toLowerCase()).toContain("unverified");
+    expect(fare.cards[0]?.kind).toBe("fare_breakdown");
+  });
+});
