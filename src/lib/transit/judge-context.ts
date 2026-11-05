@@ -19,6 +19,20 @@ export function mergeTravellerContext(message: string, oldContext: Context): Con
   const ctx: Context = { passengers: 1, concessionType: "none", wheelchairRequired: false, ...oldContext };
   const t = message.toLowerCase();
 
+  // Recognise a narrow, explicit Tanglish origin/destination pair for memory.
+  // The actual journey planner must still validate both against GTFS.
+  const pair = message.match(/^\s*([A-Za-z][A-Za-z .'-]{2,65}?)\s+(?:la\s+)?(?:lendhu|irundhu|ilirundhu)\s+(.+)$/i);
+  if (pair) {
+    const destination = pair[2]!
+      .replace(/\s+(?:by|before)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b.*$/i, "")
+      .replace(/\b(?:poganum|pognum|ponum)\b.*$/i, "")
+      .replace(/[?!.,]+$/g, "").trim();
+    if (destination && destination.length < 70) {
+      ctx.origin = pair[1]!.trim();
+      ctx.destination = destination;
+    }
+  }
+
   const number = t.match(/\b(\d{1,2})\s+(?:unified\s+)?(?:tickets?|passengers?|travell?ers?|people)\b/) ??
     t.match(/\b(?:for|book|need)\s+(\d{1,2})\s+(?:unified\s+)?(?:tickets?|passengers?|people)\b/);
   if (number) {
@@ -27,11 +41,11 @@ export function mergeTravellerContext(message: string, oldContext: Context): Con
   }
 
   // Wheelchair is a travel requirement, not proof that any station or bus is accessible.
-  if (/\b(?:wheel\s?chair|wheel-chair|wheelchair-la|wheelchairil|mobility chair)\b/i.test(message) ||
+  if (/\b(?:no wheelchair|wheelchair not needed|without wheelchair)\b/i.test(message)) {
+    ctx.wheelchairRequired = false;
+  } else if (/\b(?:wheel\s?chair|wheel-chair|wheelchair-la|wheelchairil|mobility chair)\b/i.test(message) ||
       /வீல்சேர்|சக்கர நாற்காலி/i.test(message)) {
     ctx.wheelchairRequired = true;
-  } else if (/\b(?:no wheelchair|wheelchair not needed|without wheelchair)\b/i.test(message)) {
-    ctx.wheelchairRequired = false;
   }
 
   if (/\b(?:senior\s+(?:citizen\s+)?concession|senior\s+ticket|senior\s+pass|one senior concession)\b/i.test(message)) {
