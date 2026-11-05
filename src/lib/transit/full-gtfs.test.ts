@@ -142,6 +142,7 @@ describe("Fare estimates and intent recovery", () => {
 describe("Regression: Koyambedu to Airport duplicate Metro cards", () => {
   it("returns unique geographic Metro journeys, not six stop-time variants", () => {
     const options = planFullGtfs(network, "Koyambedu", "Chennai Airport", "Metro", 6);
+    console.info("KOYAMBEDU_METRO_DEDUP_AUDIT", JSON.stringify(options.map((route) => ({ id: route.id, duration: route.totalDurationMinutes, transfers: route.transferCount, routeName: route.routeName, stops: route.legs.map((leg) => leg.stops) }))));
     expect(options.length).toBeGreaterThan(0);
     for (let i = 0; i < options.length; i++) {
       for (let j = i + 1; j < options.length; j++) {
