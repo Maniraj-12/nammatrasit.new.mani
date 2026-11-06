@@ -18,6 +18,7 @@ import {
   type StationFacility,
   type TransportMode,
 } from "./data";
+import { isServiceUpdateRequest } from "./conversation-intents";
 
 export type FareDataStatus = "official_gtfs" | "published_tariff" | "estimated" | "unavailable";
 
@@ -1025,6 +1026,52 @@ function reportOperator(message: string): string | undefined {
  * Recover facts explicitly supplied in a complaint. This does NOT verify the
  * claimed incident with an operator, nor identify a real-time lift status.
  */
+/** Keep common short complaint categories equivalent to the UI chip wording. */
+export function normalizeComplaintCategory(value: string): string | undefined {
+  const t = norm(value);
+  if (!t || /^(?:problem|issue|place|location|station|here|there|unknown|not sure)$/.test(t)) return undefined;
+  if (/\b(?:lift|lifts|elevator|elevators|escalator|escalators)\b/.test(t)) return "Lift / escalator";
+  if (/\b(?:skipp?ed|skipping|missed|didnt stop|did not stop)\b.{0,25}\b(?:bus |the |a )?(?:stop|station)\b/.test(t)) return "Bus skipped stop";
+  if (/\b(?:breakdown|broke down|vehicle stopped|bus stopped|engine failure)\b/.test(t)) return "Vehicle breakdown";
+  if (/\b(?:overcrowd(?:ed|ing)?|crowded|crowding|too many people)\b/.test(t)) return "Overcrowding";
+  if (/\b(?:unclean|dirty|cleanliness|cleaning|hygiene|litter|garbage)\b/.test(t)) return "Cleanliness";
+  if (/\b(?:staff|behaviour|behavior|misbehav|rude|driver attitude|conductor attitude)\b/.test(t)) return "Staff behaviour";
+  if (/\b(?:ticket|ticketing|payment|refund|overcharg|fare charg)\b/.test(t)) return "Ticketing";
+  if (/^(?:other|something else|other problem)$/.test(t)) return "Other";
+  return undefined;
+}
+
+const locationPlaceholder = /^(?:place|location|station|stop|bus stop|metro station|here|there|nearby|unknown|not sure|same place)$/i;
+const categoryPlaceholder = /^(?:problem|issue|type|category|dont know|not sure|unknown|place|location)$/i;
+
+/**
+ * A location is not the same as a problem type. Accept actual names and
+ * landmarks as free text, but ask for clarification on empty placeholders.
+ */
+function locationAnswer(value: string): string | undefined {
+  const clean = value.trim().replace(/^(?:at|in|near|place\s*:|location\s*:)\s+/i, "").trim();
+  if (clean.length < 3 || locationPlaceholder.test(clean)) return undefined;
+  return clean;
+}
+
+function grievanceClarification(ctx: Context, reply: string, chips: string[] = []): ChatReply {
+  return { reply, cards: [], suggestions: [...chips, "Cancel complaint"], context: ctx, intent: "grievance" };
+}
+
+function serviceUpdateReply(ctx: Context): ChatReply {
+  const hasDraft = Boolean(ctx.grievance);
+  return {
+    reply: "These are **simulated demonstration service alerts**, not verified current Chennai service updates." +
+      (hasDraft ? " Your unfinished complaint is saved; you can continue answering its last question." : ""),
+    cards: [{ kind: "alerts", alerts: DEMO_ALERTS }],
+    suggestions: hasDraft
+      ? ["Resume complaint", "Cancel complaint", "Show service updates"]
+      : ["Show all options", "Any service alerts?", "Report a problem"],
+    context: ctx,
+    intent: "service_alerts",
+  };
+}
+
 function inferGrievanceFacts(message: string): GrievanceDraft {
   const original = message.trim().replace(
     /^(?:i\s+want\s+to\s+|please\s+)?(?:report\s+(?:a\s+)?(?:problem|issue|complaint)|file\s+a\s+complaint)\s*[:\-]?\s*/i,
@@ -1046,19 +1093,8 @@ function inferGrievanceFacts(message: string): GrievanceDraft {
     data.location = "MTC Bus Route " + busRoute.toUpperCase();
   }
 
-  if (/\b(lift|elevator|escalator)\b/i.test(original)) {
-    data.category = "Lift / escalator";
-  } else if (/\b(?:skipp?ed|did(?:n'?t| not) stop|missed)\s+(?:the\s+|a\s+)?(?:stop|station)\b/i.test(original)) {
-    data.category = "Bus skipped stop";
-  } else if (/\b(?:breakdown|broke down|vehicle stopped)\b/i.test(original)) {
-    data.category = "Vehicle breakdown";
-  } else if (/\b(?:overcrowd|crowded)\b/i.test(original)) {
-    data.category = "Overcrowding";
-  } else if (/\b(?:unclean|dirty|cleanliness)\b/i.test(original)) {
-    data.category = "Cleanliness";
-  } else if (/\b(?:ticket|payment|refund)\b/i.test(original)) {
-    data.category = "Ticketing";
-  }
+  const category = normalizeComplaintCategory(original);
+  if (category) data.category = category;
 
   // Don't treat an empty "report a problem" request as a description.
   // Keep the original wording, not a generated or exaggerated accusation.
@@ -1096,39 +1132,68 @@ function nextGrievanceReply(data: GrievanceDraft, ctx: Context): ChatReply {
 function continueGrievance(msg: string, ctx: Context): ChatReply {
   const g = ctx.grievance!;
   const value = msg.trim();
-  if (!value) {
+  if (!value || /^(?:resume|continue)(?: my| the)? complaint$/i.test(value)) {
     return nextGrievanceReply(g.data, ctx);
   }
+  const inferred = inferGrievanceFacts(value);
+  const data: GrievanceDraft = { ...g.data, ...inferred };
   if (g.step === "operator") {
-    const operator = reportOperator(value);
+    const operator = inferred.operator ?? reportOperator(value);
     if (!operator) {
-      return {
-        reply: "Please select the transport operator for your complaint: Metro, MTC Bus, or Suburban train. Your journey details are still remembered.",
-        cards: [],
-        suggestions: ["Metro", "MTC Bus", "Suburban train", "Cancel complaint"],
-        context: ctx,
-      };
+      return grievanceClarification(ctx,
+        "Which transport operator is this about? Metro, MTC Bus, or Suburban train? I have kept your journey details.",
+        ["Metro", "MTC Bus", "Suburban train"]);
     }
-    return nextGrievanceReply({ ...g.data, operator }, ctx);
+    return nextGrievanceReply({ ...data, operator }, ctx);
   }
-
-  // If a commuter supplies the operator again at a later point, update the
-  // operator instead of misfiling "Metro" as the incident date or location.
+  // A repeated operator answer updates it rather than corrupting another slot.
   if (/^(?:metro|cmrl|chennai metro|bus|mtc|mtc bus|train|suburban|suburban train|southern railway)$/i.test(value)) {
-    return nextGrievanceReply({ ...g.data, operator: reportOperator(value) }, ctx);
+    return nextGrievanceReply({ ...data, operator: reportOperator(value) }, ctx);
   }
-  if (g.step === "datetime" &&
-      !/\b(?:today|yesterday|tomorrow|now|just now|morning|afternoon|evening|night|last|ago|unknown|not sure|unsure)\b|\d{1,2}[:/.-]\d{1,2}|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(value)) {
-    return {
-      reply: "Please tell me approximately when the incident happened (for example, 'Today morning' or 'Yesterday 6 PM'), or say 'Not sure'. I have kept all the complaint details.",
-      cards: [],
-      suggestions: ["Today morning", "Yesterday evening", "Not sure", "Cancel complaint"],
-      context: ctx,
-    };
+  if (g.step === "location") {
+    // For example, someone may say "lift" before giving a station.
+    // Remember the issue type and continue asking specifically for its place.
+    if (inferred.category && !inferred.location) {
+      return nextGrievanceReply(data, ctx);
+    }
+    const location = inferred.location ?? locationAnswer(value);
+    if (!location) {
+      return grievanceClarification(ctx,
+        "Please tell me the actual station, stop, route or nearby landmark (for example, 'Guindy Metro North Gate'). 'Place' alone is not enough to locate the complaint.",
+        ["Guindy Metro North Gate", "Tambaram", "MTC Route 70"]);
+    }
+    return nextGrievanceReply({ ...data, location }, ctx);
   }
-  // During a grievance, stop names and responses are answers to the active
-  // question and do not trigger new journey-planning intents.
-  return nextGrievanceReply({ ...g.data, [g.step]: value }, ctx);
+  if (g.step === "category") {
+    // Never force the exact UI label "Lift / escalator": "lift", "escalator",
+    // "dirty", "crowding", etc. are natural equivalents.
+    const category = inferred.category ?? normalizeComplaintCategory(value);
+    if (!category && (value.length < 4 || categoryPlaceholder.test(value))) {
+      return grievanceClarification(ctx,
+        "What kind of issue happened? You can type a short answer like 'lift', 'escalator', 'cleanliness', 'bus skipped stop', or 'other'.",
+        GRIEVANCE_STEPS.find((step) => step.key === "category")!.chips);
+    }
+    // Accept a reasonable custom description as an 'Other' category.
+    return nextGrievanceReply({ ...data, category: category ?? "Other: " + value }, ctx);
+  }
+  if (g.step === "description") {
+    const description = inferred.description ?? value;
+    if (description.length < 9 || /^(?:lift|escalator|bus|dirty|bad|problem|issue|other)$/i.test(description)) {
+      return grievanceClarification(ctx,
+        "I've noted the problem category. Please briefly describe what happened, such as 'North Gate lift is stuck' or 'Bus skipped my stop'.",
+        ["The lift was not working", "The bus skipped my stop"]);
+    }
+    return nextGrievanceReply({ ...data, description }, ctx);
+  }
+  if (g.step === "datetime") {
+    if (!/\b(?:today|yesterday|tomorrow|now|just now|morning|afternoon|evening|night|last|ago|unknown|not sure|unsure)\b|\d{1,2}[:/.-]\d{1,2}|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(value)) {
+      return grievanceClarification(ctx,
+        "Please tell me approximately when this happened (e.g., 'Today morning' or 'Yesterday 6 PM'), or say 'Not sure'. Your complaint details are saved.",
+        ["Today morning", "Yesterday evening", "Not sure"]);
+    }
+    return nextGrievanceReply({ ...data, datetime: value }, ctx);
+  }
+  return nextGrievanceReply(data, ctx);
 }
 
 const has = (t: string, re: RegExp) => re.test(t);
@@ -1140,7 +1205,11 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
   const ctx: Context = { ...ctxIn };
   const t = norm(message);
 
-  // 1. Grievance Flow
+  // 1. Grievance Flow: service updates may temporarily interrupt an
+  // unfinished complaint without replacing its pending field or journey.
+  if (ctx.grievance && isServiceUpdateRequest(message)) {
+    return serviceUpdateReply(ctx);
+  }
   if (ctx.grievance) {
     if (has(t, /\bcancel\b/)) {
       return {
@@ -1164,15 +1233,12 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
     return nextGrievanceReply(inferGrievanceFacts(message), ctx);
   }
 
-  // 2. Service Alerts
-  if (has(t, /alert|disruption|delay|service update|status|closed|strike/)) {
-    return {
-      reply:
-        "Here are the simulated service alerts from our ChennaiGTFS demonstration feed. Please note: these alerts are simulated for demonstration and do not reflect real-time live service status.",
-      cards: [{ kind: "alerts", alerts: DEMO_ALERTS }],
-      suggestions: defaultChips(ctx),
-      context: ctx,
-    };
+  // 2. Service Alerts: explicitly handle plural "service updates" and
+  // related phrases before any route discovery (never use last journey as a
+  // reason to turn an alert request into route cards).
+  if (isServiceUpdateRequest(message) ||
+      has(t, /\b(alerts?|disruptions?|delays?|service updates?|status|closed|strike)\b/)) {
+    return serviceUpdateReply(ctx);
   }
 
   // 3. Station Slot Extraction & Updates
