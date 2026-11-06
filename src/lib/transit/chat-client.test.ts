@@ -12,7 +12,9 @@ describe("Transit chat preview resilience", () => {
 
     expect(result.transport).toBe("server");
     expect(result.reply).toBe(serverReply);
-    expect(send).toHaveBeenCalledWith("Koyambedu to Guindy", ctx);
+    expect(send).toHaveBeenCalledWith("Koyambedu to Guindy", expect.objectContaining({
+      passengers: 1, concessionType: "none", wheelchairRequired: false,
+    }));
   });
 
   it("answers with the bundled planner if the server function is unavailable", async () => {

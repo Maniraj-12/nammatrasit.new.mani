@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { Brand, Disclaimer } from "@/components/transit/Brand";
 import { ResultCard } from "@/components/transit/Cards";
+import { ActiveMemoryBar } from "@/components/transit/ActiveMemoryBar";
+import { JudgeDemoChips } from "@/components/transit/JudgeDemoChips";
 import { sendChat } from "@/lib/transit/chat.functions";
 import { requestTransitResponse } from "@/lib/transit/chat-client";
 import type { Card, Context } from "@/lib/transit/engine";
@@ -50,7 +52,7 @@ type Msg = {
   error?: boolean;
 };
 
-type Saved = { messages: Msg[]; context: Context; suggestions: string[] };
+type Saved = { messages: Msg[]; context: Context; suggestions: string[]; demoStep?: number };
 
 const KEY = "nammatransit-conversation";
 const WELCOME: Msg = {
@@ -85,6 +87,7 @@ function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [usingLocalPlanner, setUsingLocalPlanner] = useState(false);
+  const [demoStep, setDemoStep] = useState(0);
   const [open, setOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -96,6 +99,7 @@ function ChatPage() {
         setMessages(s.messages);
         setContext(s.context);
         setSuggestions(s.suggestions);
+        setDemoStep(Math.min(5, Math.max(0, s.demoStep ?? 0)));
       }
     } catch {
       /* ignore */
@@ -104,31 +108,46 @@ function ChatPage() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify({ messages, context, suggestions } satisfies Saved));
+    localStorage.setItem(KEY, JSON.stringify({ messages, context, suggestions, demoStep } satisfies Saved));
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, context, suggestions]);
+  }, [messages, context, suggestions, demoStep]);
 
-  async function send(text: string) {
+  async function send(text: string, judgeTurn?: number) {
     const msg = text.trim();
     if (!msg || loading) return;
+    const freshDemo = judgeTurn === 1;
+    const previousContext = freshDemo ? {} : context;
     setOpen(false);
     setInput("");
-    setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", text: msg }]);
+    if (freshDemo) {
+      // Turn one starts a genuinely fresh five-turn story rather than
+      // reusing another commuter's past journey.
+      setMessages([WELCOME, { id: crypto.randomUUID(), role: "user", text: msg }]);
+      setContext({});
+      setDemoStep(0);
+    } else {
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", text: msg }]);
+    }
     setLoading(true);
     try {
       const { reply: r, transport } = await requestTransitResponse(
         msg,
-        context,
-        (message, previousContext) =>
-          sendChat({ data: { message, context: previousContext } }),
+        previousContext,
+        (message, currentContext) =>
+          sendChat({ data: { message, context: currentContext } }),
       );
       setUsingLocalPlanner(transport === "local");
       setContext(r.context);
       setSuggestions(r.suggestions);
+      const note = judgeTurn === 3
+        ? " Demo ticket issuance will be added in Phase 2; no ticket has been booked or paid for."
+        : "";
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: "assistant", text: r.reply, cards: r.cards },
+        { id: crypto.randomUUID(), role: "assistant", text: r.reply + note, cards: r.cards },
       ]);
+      if (judgeTurn) setDemoStep((previous) =>
+        judgeTurn === 1 ? 1 : judgeTurn === previous + 1 ? judgeTurn : previous);
     } catch {
       setMessages((m) => [
         ...m,
@@ -150,6 +169,7 @@ function ChatPage() {
     setContext({});
     setSuggestions(START_CHIPS);
     setUsingLocalPlanner(false);
+    setDemoStep(0);
     setOpen(false);
     inputRef.current?.focus();
   }
@@ -295,6 +315,7 @@ function ChatPage() {
             </div>
           )}
         </header>
+        <ActiveMemoryBar context={context} />
         {usingLocalPlanner && (
           <div
             role="status"
@@ -369,6 +390,11 @@ function ChatPage() {
 
         <div className="border-t bg-card px-4 py-3">
           <div className="mx-auto max-w-6xl">
+            <JudgeDemoChips
+              completedTurns={demoStep}
+              busy={loading}
+              onPick={(turn, prompt) => void send(prompt, turn)}
+            />
             {/* Suggestion Chips */}
             <div className="mb-2 flex flex-wrap gap-1.5">
               {suggestions.map((s) => (

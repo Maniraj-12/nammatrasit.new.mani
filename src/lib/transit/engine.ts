@@ -144,6 +144,14 @@ export type Card =
   | { kind: "grievance"; draft: Record<keyof GrievanceDraft, string>; link: string };
 
 export type Context = {
+  /** Judge-visible persistent traveller requirements; do not infer eligibility from age alone. */
+  passengers?: number | undefined;
+  concessionType?: "none" | "women_ordinary_bus" | "student" | "senior" | undefined;
+  concessionPassengers?: number | undefined;
+  wheelchairRequired?: boolean | undefined;
+  arrivalBy?: string | undefined;
+  activeDisruption?: string | undefined;
+  preferredLanguage?: "en" | "ta" | "tanglish" | undefined;
   origin?: string | undefined;
   destination?: string | undefined;
   originId?: string | undefined;
@@ -1172,20 +1180,16 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       };
     }
 
-    const facility = STATION_FACILITIES[station] ?? {
-      station,
-      modes: ["Metro"],
-      hasLifts: true,
-      hasEscalators: true,
-      wheelchairAccessible: true,
-      tactilePaving: true,
-      accessibleTicketCounter: true,
-      parkingAvailable: false,
-      feederBusAvailable: false,
-      helpline: "CMRL Helpline: 1860-425-1515",
-      notes:
-        "Station facilities verified against published CUMTA accessibility registry. Live elevator status is not monitored.",
-    };
+    const facility = STATION_FACILITIES[station];
+    if (!facility) {
+      return {
+        reply: `I have retained your wheelchair preference. Accessibility information for ${station} is not verified in this prototype, so I cannot confirm a working lift, ramp or accessible bus there. Please check with the transport operator before travelling.`,
+        cards: [],
+        suggestions: ["Show all options", "What is the fare?", "Accessibility at Guindy"],
+        context: { ...ctx, lastStation: station },
+        intent: "accessibility",
+      };
+    }
 
     return {
       reply: `Here are the published accessibility facilities for **${station}** (from our Chennai transport registry). Live lift operating status is not monitored.`,
