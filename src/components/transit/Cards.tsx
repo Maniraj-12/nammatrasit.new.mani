@@ -27,6 +27,7 @@ import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, 
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 import { RouteMap } from "./RouteMap";
 import { ChennaiOneHandoff } from "./ChennaiOneHandoff";
+import { DisruptionRerouteDemo } from "./DisruptionRerouteDemo";
 
 const Badge = ({
   children,
@@ -609,11 +610,16 @@ export function RouteOptionsCard({
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [shareLabel, setShareLabel] = useState("Share Journey");
   const [expandedStops, setExpandedStops] = useState<string[]>([]);
+  const [rerouteCandidates, setRerouteCandidates] = useState<CanonicalItinerary[]>([]);
   const slider = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedId(activeItineraryId);
   }, [activeItineraryId]);
+
+  useEffect(() => {
+    setRerouteCandidates([]);
+  }, [options]);
 
   useEffect(() => {
     if (ROUTE_FILTERS.includes(selectedFilter as RouteFilter)) {
@@ -624,7 +630,8 @@ export function RouteOptionsCard({
   const counts = routeFilterCounts(options);
   const highlights = routeHighlights(options);
   const displayed = filterRouteOptions(options, filter);
-  const selected = options.find((route) => route.id === selectedId) ?? options[0];
+  const selected = options.find((route) => route.id === selectedId) ??
+    rerouteCandidates.find((route) => route.id === selectedId) ?? options[0];
 
   const selectRoute = (route: CanonicalItinerary) => {
     setSelectedId(route.id);
@@ -875,6 +882,16 @@ export function RouteOptionsCard({
           </div>
 
           <RouteMap itinerary={selected} />
+          <DisruptionRerouteDemo
+            key={selected.id}
+            itinerary={selected}
+            existingOptions={options}
+            onCandidates={(routes) => setRerouteCandidates((prev) => {
+              const known = new Set(prev.map((item) => item.id));
+              return [...prev, ...routes.filter((item) => !known.has(item.id))];
+            })}
+            onChoose={selectRoute}
+          />
 
           <ol className="mt-3 space-y-3">
             {selected.legs.map((leg, index) => {
