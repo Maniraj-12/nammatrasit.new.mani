@@ -70,7 +70,7 @@ const START_CHIPS = [
 ];
 
 const NAV = [
-  { icon: Map, label: "Plan Journey", prompt: "How do I travel from Guindy to Chennai Airport?" },
+  { icon: Map, label: "Plan Journey", prompt: "Plan a journey" },
   { icon: Zap, label: "Compare Fastest", prompt: "Which is faster?" },
   { icon: Bus, label: "MTC Bus Routes", prompt: "Is there a bus route?" },
   { icon: Ticket, label: "Fares & Tickets", prompt: "What is the fare?" },
@@ -452,7 +452,9 @@ function ChatPage() {
                     send(input);
                   }
                 }}
-                placeholder="Ask about a journey (e.g. Guindy to Airport), compare modes, check fares…"
+                placeholder={context.pendingJourney
+                  ? (context.pendingJourney.origin ? "Where would you like to travel to?" : "Where are you starting from?")
+                  : "Ask about a journey (e.g. Guindy to Airport), compare modes, check fares…"}
                 aria-label="Message"
                 className="max-h-32 flex-1 resize-none bg-transparent px-2.5 py-1.5 text-sm focus:outline-none"
               />
