@@ -24,7 +24,7 @@ export function isNewJourneyRequest(text: string): boolean {
 }
 
 const refuseAsStop =
-  /^(?:yes|no|ok|okay|sure|hello|hi|hey|none|nothing|not sure|don't know|dont know|unknown|skip|place|location|station|stop|here|there|anywhere|metro|bus|train|suburban|all|somewhere|another journey|journey|trip|route|from|to|origin|destination|by metro|by bus|by train)$/i;
+  /^(?:yes|no|ok|okay|sure|hello|hi|hey|none|nothing|not sure|don't know|dont know|unknown|skip|where|when|why|who|what|which|place|location|station|stop|here|there|anywhere|metro|bus|train|suburban|all|somewhere|another journey|journey|trip|route|from|to|origin|destination|by metro|by bus|by train)$/i;
 const nonLocationQuestion =
   /^(?:can you|could you|show|check|report|tell me|compare|how|what|when|why|which|does|are|is|book|ticket|fare|price|cost|cancel|i need|i want|i have|i am travelling|i am traveling|we need|we want)\b/i;
 
@@ -74,7 +74,7 @@ function resetRoute(ctx: Context): Context {
     activeItineraryId: undefined, lastReferencedItineraryId: undefined,
     recommendedFastestId: undefined, selectedFilter: undefined,
     availableItineraries: [], pendingStopClarification: undefined,
-    activeDisruption: undefined,
+    activeDisruption: undefined, arrivalBy: undefined,
     lastStation: undefined,
   };
 }
