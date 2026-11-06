@@ -1012,19 +1012,73 @@ function grievanceLink(op?: string) {
   return OFFICIAL_LINKS.cmrlGrievance;
 }
 
-function continueGrievance(msg: string, ctx: Context): ChatReply {
-  const g = ctx.grievance!;
-  let value = msg.trim();
-  if (g.step === "operator") {
-    const k = Object.keys(OPERATORS).find((o) => norm(msg).includes(o));
-    value = k ? OPERATORS[k]! : value;
+/** Only infer an operator when the user's report explicitly names a mode. */
+function reportOperator(message: string): string | undefined {
+  const t = norm(message);
+  if (/\b(cmrl|metro|chennai metro)\b/.test(t)) return OPERATORS.metro;
+  if (/\b(mtc|bus|buses)\b/.test(t)) return OPERATORS.bus;
+  if (/\b(southern railway|suburban|mrt[s]?|railway|train)\b/.test(t)) return OPERATORS.train;
+  return undefined;
+}
+
+/**
+ * Recover facts explicitly supplied in a complaint. This does NOT verify the
+ * claimed incident with an operator, nor identify a real-time lift status.
+ */
+function inferGrievanceFacts(message: string): GrievanceDraft {
+  const original = message.trim().replace(
+    /^(?:i\s+want\s+to\s+|please\s+)?(?:report\s+(?:a\s+)?(?:problem|issue|complaint)|file\s+a\s+complaint)\s*[:\-]?\s*/i,
+    "",
+  ).trim();
+  const data: GrievanceDraft = {};
+  const operator = reportOperator(original);
+  if (operator) data.operator = operator;
+
+  // Station / stop is a complaint location and MUST NOT replace the route
+  // origin/destination already stored in conversation context.
+  const namedStation = findStations(original)[0]?.name;
+  const gate = original.match(/\b(north|south|east|west)\s+(?:gate|entrance)\b/i)?.[0];
+  const busRoute = original.match(/\b(?:bus|mtc)\s*(?:route\s*)?#?\s*([0-9]{1,4}[a-z]{0,3})\b/i)?.[1];
+  if (namedStation) {
+    data.location = [namedStation, operator === OPERATORS.metro ? "Metro" : undefined, gate]
+      .filter(Boolean).join(" ");
+  } else if (busRoute) {
+    data.location = "MTC Bus Route " + busRoute.toUpperCase();
   }
-  const data = { ...g.data, [g.step]: value };
-  const idx = GRIEVANCE_STEPS.findIndex((s) => s.key === g.step);
-  const next = GRIEVANCE_STEPS.slice(idx + 1).find((s) => !data[s.key]);
+
+  if (/\b(lift|elevator|escalator)\b/i.test(original)) {
+    data.category = "Lift / escalator";
+  } else if (/\b(?:skipp?ed|did(?:n'?t| not) stop|missed)\s+(?:the\s+|a\s+)?(?:stop|station)\b/i.test(original)) {
+    data.category = "Bus skipped stop";
+  } else if (/\b(?:breakdown|broke down|vehicle stopped)\b/i.test(original)) {
+    data.category = "Vehicle breakdown";
+  } else if (/\b(?:overcrowd|crowded)\b/i.test(original)) {
+    data.category = "Overcrowding";
+  } else if (/\b(?:unclean|dirty|cleanliness)\b/i.test(original)) {
+    data.category = "Cleanliness";
+  } else if (/\b(?:ticket|payment|refund)\b/i.test(original)) {
+    data.category = "Ticketing";
+  }
+
+  // Don't treat an empty "report a problem" request as a description.
+  // Keep the original wording, not a generated or exaggerated accusation.
+  if (/\b(?:not working|broken|stuck|out of order|skipp?ed|breakdown|broke down|overcrowd|dirty|unclean|failed|refused)\b/i.test(original)) {
+    data.description = original;
+  }
+
+  const happenedAt = original.match(/\b(?:today|yesterday)\s+(?:morning|afternoon|evening|night)\b/i);
+  if (happenedAt) data.datetime = happenedAt[0];
+  return data;
+}
+
+function nextGrievanceReply(data: GrievanceDraft, ctx: Context): ChatReply {
+  const next = GRIEVANCE_STEPS.find((s) => !data[s.key]?.trim());
   if (next) {
+    const known = [data.operator, data.location, data.category].filter(Boolean).join(" · ");
     return {
-      reply: next.ask,
+      reply: known
+        ? "I have noted: " + known + ". " + next.ask + " This remains a draft until you submit it."
+        : "I'll help prepare a complaint draft. " + next.ask,
       cards: [],
       suggestions: [...next.chips, "Cancel complaint"],
       context: { ...ctx, grievance: { step: next.key, data } },
@@ -1032,12 +1086,35 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
   }
   const draft = data as Record<keyof GrievanceDraft, string>;
   return {
-    reply:
-      "Here is your structured complaint draft. You can copy it, review the details, and submit it on the operator's official grievance portal. No complaint has been automatically filed.",
+    reply: "I've prepared a complaint draft using your details. Please review it and submit it through the official operator portal. Nothing has been filed or sent automatically.",
     cards: [{ kind: "grievance", draft, link: grievanceLink(draft.operator) }],
     suggestions: ["Report another problem", "Show service updates", "Plan another journey"],
     context: { ...ctx, grievance: undefined },
   };
+}
+
+function continueGrievance(msg: string, ctx: Context): ChatReply {
+  const g = ctx.grievance!;
+  const value = msg.trim();
+  if (!value) {
+    return nextGrievanceReply(g.data, ctx);
+  }
+  if (g.step === "operator") {
+    const operator = reportOperator(value);
+    if (!operator) {
+      return {
+        reply: "Please select the transport operator for your complaint: Metro, MTC Bus, or Suburban train. Your journey details are still remembered.",
+        cards: [],
+        suggestions: ["Metro", "MTC Bus", "Suburban train", "Cancel complaint"],
+        context: ctx,
+      };
+    }
+    return nextGrievanceReply({ ...g.data, operator }, ctx);
+  }
+
+  // During a grievance, even words like "Metro", "Guindy", "Bus" or "Route 70"
+  // belong to the active question; they must not trigger a journey search.
+  return nextGrievanceReply({ ...g.data, [g.step]: value }, ctx);
 }
 
 const has = (t: string, re: RegExp) => re.test(t);
@@ -1068,13 +1145,9 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
       /complain|complaint|grievance|report (a )?problem|report an issue|report another|file a complaint/,
     )
   ) {
-    const first = GRIEVANCE_STEPS[0]!;
-    return {
-      reply: `I will assist you in preparing a formal grievance draft. ${first.ask}`,
-      cards: [],
-      suggestions: [...first.chips, "Cancel complaint"],
-      context: { ...ctx, grievance: { step: "operator", data: {} } },
-    };
+    // A direct report may already contain the operator, exact gate, issue
+    // category and description. Do not ask for them a second time.
+    return nextGrievanceReply(inferGrievanceFacts(message), ctx);
   }
 
   // 2. Service Alerts
