@@ -1112,8 +1112,22 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
     return nextGrievanceReply({ ...g.data, operator }, ctx);
   }
 
-  // During a grievance, even words like "Metro", "Guindy", "Bus" or "Route 70"
-  // belong to the active question; they must not trigger a journey search.
+  // If a commuter supplies the operator again at a later point, update the
+  // operator instead of misfiling "Metro" as the incident date or location.
+  if (/^(?:metro|cmrl|chennai metro|bus|mtc|mtc bus|train|suburban|suburban train|southern railway)$/i.test(value)) {
+    return nextGrievanceReply({ ...g.data, operator: reportOperator(value) }, ctx);
+  }
+  if (g.step === "datetime" &&
+      !/\b(?:today|yesterday|tomorrow|now|just now|morning|afternoon|evening|night|last|ago|unknown|not sure|unsure)\b|\d{1,2}[:/.-]\d{1,2}|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(value)) {
+    return {
+      reply: "Please tell me approximately when the incident happened (for example, 'Today morning' or 'Yesterday 6 PM'), or say 'Not sure'. I have kept all the complaint details.",
+      cards: [],
+      suggestions: ["Today morning", "Yesterday evening", "Not sure", "Cancel complaint"],
+      context: ctx,
+    };
+  }
+  // During a grievance, stop names and responses are answers to the active
+  // question and do not trigger new journey-planning intents.
   return nextGrievanceReply({ ...g.data, [g.step]: value }, ctx);
 }
 
