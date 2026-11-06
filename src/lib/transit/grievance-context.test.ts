@@ -103,6 +103,21 @@ describe("Sticky conversational grievances — Phase 1 regression", () => {
     expect(pending.cards.every((c) => c.kind !== "grievance")).toBe(true);
   });
 
+  it("does not record a repeated operator answer as incident date", async () => {
+    const first = respond("Report a problem: Guindy Metro North Gate lift is not working!",existingJourney);
+    expect(first.context.grievance?.step).toBe("datetime");
+    const repeated = await requestTransitResponse("Metro",first.context,async () => {
+      throw new Error("Should be handled by the ongoing complaint flow");
+    });
+    expect(repeated.reply.context.grievance?.step).toBe("datetime");
+    expect(repeated.reply.context.grievance?.data.datetime).toBeUndefined();
+    expect(repeated.reply.context.grievance?.data.operator).toBe("CMRL (Chennai Metro)");
+    const invalid = respond("Blue Line",repeated.reply.context);
+    expect(invalid.context.grievance?.step).toBe("datetime");
+    expect(invalid.cards).toEqual([]);
+    expect(invalid.reply).toMatch(/approximately when/i);
+  });
+
   it("allows cancellation without erasing the journey", () => {
     const started = respond("Report a problem", existingJourney);
     const cancelled = respond("Cancel complaint", started.context);
