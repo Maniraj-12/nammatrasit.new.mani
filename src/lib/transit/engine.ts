@@ -18,6 +18,7 @@ import {
   type StationFacility,
   type TransportMode,
 } from "./data";
+import { detectPriorityConversationIntent } from "./conversation-intent";
 
 export type FareDataStatus = "official_gtfs" | "published_tariff" | "estimated" | "unavailable";
 
@@ -1237,7 +1238,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
   }
 
   // 2. Service Alerts
-  if (has(t, /alert|disruption|delay|service update|status|closed|strike/)) {
+  if (detectPriorityConversationIntent(message) === "service_alerts") {
     return {
       reply:
         "Here are the simulated service alerts from our ChennaiGTFS demonstration feed. Please note: these alerts are simulated for demonstration and do not reflect real-time live service status.",
