@@ -71,6 +71,9 @@ function selectUseful(routes: CanonicalItinerary[], limit = 6) {
 }
 
 export async function respondFromFullGtfs(message: string, ctx: Context): Promise<ChatReply | null> {
+  // A previously started complaint is a higher-priority conversational
+  // intent. Do not interpret the user answering "Metro" or "Bus" as routing.
+  if (ctx.grievance) return null;
   const normalized = normalizeCommuterMessage(message);
   const t = normalized.trim().toLowerCase();
   if (/\b(traffic|congestion|road jam|rush.hour|traffic.aware|traffic delay)\b/.test(t)) {
