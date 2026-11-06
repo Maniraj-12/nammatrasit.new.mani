@@ -1034,7 +1034,7 @@ function grievanceCategory(message: string): string | undefined {
   if (/\b(staff|conductor|driver|rude|behaviour|behavior|misbehav|harass)\b/.test(t)) return "Staff behaviour";
   if (/\b(skipp?ed|did not stop|didn t stop|missed stop|stop skipped|no stop)\b/.test(t)) return "Bus skipped stop";
   if (/\b(breakdown|broke down|vehicle stopped|engine failure)\b/.test(t)) return "Vehicle breakdown";
-  if (/\b(overcrowd|crowded|crowding|too full)\b/.test(t)) return "Overcrowding";
+  if (/\b(overcrowd(?:ed|ing)?|crowded|crowding|too full)\b/.test(t)) return "Overcrowding";
   if (/\b(unclean|dirty|cleanliness|cleaning|garbage|toilet)\b/.test(t)) return "Cleanliness";
   if (/\b(ticket|payment|refund|charged|fare)\b/.test(t)) return "Ticketing";
   if (/\b(safety|unsafe|accident|danger)\b/.test(t)) return "Safety";
@@ -1079,6 +1079,7 @@ function inferGrievanceFacts(message: string): GrievanceDraft {
 
 function isCategoryOnly(message: string): boolean {
   const t = norm(message);
+  if (/^bus\s+(?:skipped|missed)\s+stop$/.test(t)) return true;
   // "Lift" is a category. "Lift is stuck" is also an incident description,
   // so do not force the commuter to describe the same problem twice.
   if (/\b(?:not working|stuck|stopped|broken|skipp?ed|failed|refused|broke down|did not stop)\b/.test(t)) return false;
@@ -1176,7 +1177,7 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
     const category = grievanceCategory(value);
     if (category) return nextGrievanceReply({
       ...g.data, category,
-      ...(facts.description ? { description: facts.description } : {}),
+      ...(!isCategoryOnly(value) && facts.description ? { description: facts.description } : {}),
     }, ctx);
     if (value.length >= 3 && value.length <= 90) {
       return nextGrievanceReply({ ...g.data, category: value }, ctx);
@@ -1199,6 +1200,10 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
   }
 
   if (g.step === "datetime") {
+    // "Not sure" is a valid uncertainty about time, not an "Other" issue.
+    if (isPlausibleIncidentTime(value)) {
+      return nextGrievanceReply({ ...g.data, datetime: value }, ctx);
+    }
     if (isCategoryOnly(value)) return nextGrievanceReply({
       ...g.data, category: grievanceCategory(value),
     }, ctx);
