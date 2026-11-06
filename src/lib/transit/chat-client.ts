@@ -27,6 +27,13 @@ export async function requestTransitResponse(
   // responder, so every branch inherits sticky preferences across turns.
   const enriched = mergeTravellerContext(message, context);
   const normalizedMessage = normalizeCommuterMessage(message);
+  // Pending multi-turn dialogue takes precedence over GTFS keywords. "Metro"
+  // after "Which operator?" is an answer to the grievance, not a route query.
+  // Process this locally so it remains reliable in AI Studio preview even if
+  // the TanStack server function is unavailable.
+  if (enriched.grievance) {
+    return { reply: respond(normalizedMessage, enriched), transport: "local" };
+  }
   const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, enriched);
   if (fullGtfsReply) return { reply: fullGtfsReply, transport: "local" };
 
