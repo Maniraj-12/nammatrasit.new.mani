@@ -61,7 +61,12 @@ export function validateDisruption(alert: TransitDisruption): string[] {
   const stops = Array.isArray(alert.affectedStops) &&
     alert.affectedStops.some(x => x && (x.id?.trim() || x.name?.trim()));
   if (!routes && !stops && alert.modeWide !== true) err.push("Alert has no affected routes or stops");
-  if (alert.sourceKind === "simulation" && /official|verified|live/i.test(alert.sourceLabel)) {
+  // "not a live service alert" is the *required disclaimer*, not a claim
+  // of live status. Reject affirmative live/official marketing language.
+  const falselyLive = /\blive\b/i.test(alert.sourceLabel) &&
+    !/\bnot\s+(?:a\s+)?live\b/i.test(alert.sourceLabel);
+  if (alert.sourceKind === "simulation" &&
+      (/\b(?:official|verified)\b/i.test(alert.sourceLabel) || falselyLive)) {
     err.push("Simulation must not be presented as official or live");
   }
   return err;
