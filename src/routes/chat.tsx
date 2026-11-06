@@ -321,9 +321,9 @@ function ChatPage() {
             role="status"
             className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900"
           >
-            Server chat is unavailable in this preview. Using the local Chennai
-            route planner with static data and estimated timings/fare guidance.
-            No live service information is available.
+            Local assistant mode: routes and fares are static estimates; service alerts
+            are demonstration data, not live operator updates. Backend services may
+            be unavailable in this preview.
           </div>
         )}
 

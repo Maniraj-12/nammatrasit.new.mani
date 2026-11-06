@@ -118,6 +118,112 @@ describe("Sticky conversational grievances — Phase 1 regression", () => {
     expect(invalid.reply).toMatch(/approximately when/i);
   });
 
+  it.each([
+    ["lift", "Lift / escalator"],
+    ["escalator", "Lift / escalator"],
+    ["Lift / escalator", "Lift / escalator"],
+    ["staff", "Staff behaviour"],
+    ["staff behaviour", "Staff behaviour"],
+    ["ticket", "Ticketing"],
+    ["dirty", "Cleanliness"],
+    ["overcrowded", "Overcrowding"],
+    ["bus skipped stop", "Bus skipped stop"],
+    ["safety", "Safety"],
+    ["refund", "Ticketing"],
+  ])("recognises one-phrase category %s as %s without asking again", (word, expected) => {
+    const first = respond("Report a problem", existingJourney);
+    const second = respond("Metro", first.context);
+    const third = respond("Guindy", second.context);
+    expect(third.context.grievance?.step).toBe("category");
+    const typed = respond(word, third.context);
+    expect(typed.context.grievance?.step).toBe("description");
+    expect(typed.context.grievance?.data.category).toBe(expected);
+    expect(typed.reply).toMatch(/describe what happened/i);
+    expect(typed.context.origin).toBe("Guindy");
+    expect(typed.context.destination).toBe("Chennai Airport");
+  });
+
+  it("stores category but still asks for location if user types 'lift' too early", () => {
+    const started = respond("Report a problem", existingJourney);
+    const operator = respond("Metro", started.context);
+    const early = respond("lift", operator.context);
+    expect(early.context.grievance?.step).toBe("location");
+    expect(early.context.grievance?.data.category).toBe("Lift / escalator");
+    expect(early.context.grievance?.data.location).toBeUndefined();
+    expect(early.reply).toMatch(/Which station/i);
+    const location = respond("Guindy", early.context);
+    expect(location.context.grievance?.step).toBe("description");
+    expect(location.context.grievance?.data.location).toContain("Guindy");
+  });
+
+  it("accepts station and issue together as a single followup", () => {
+    const started = respond("Report a problem", existingJourney);
+    const operator = respond("Metro", started.context);
+    const both = respond("Guindy North Gate lift is stuck", operator.context);
+    expect(both.context.grievance?.step).toBe("datetime");
+    expect(both.context.grievance?.data.category).toBe("Lift / escalator");
+    expect(both.context.grievance?.data.location).toContain("Guindy");
+    expect(both.context.grievance?.data.description).toContain("stuck");
+    const finish = respond("Today morning", both.context);
+    expect(finish.cards[0]?.kind).toBe("grievance");
+    expect(finish.context.origin).toBe("Guindy");
+    expect(finish.context.passengers).toBe(2);
+  });
+
+  it("when only 'lift is stuck' is supplied, keeps the issue and asks for location", () => {
+    const first = respond("Report a problem", existingJourney);
+    const op = respond("Metro", first.context);
+    const earlyIssue = respond("lift is stuck", op.context);
+    expect(earlyIssue.context.grievance?.step).toBe("location");
+    expect(earlyIssue.context.grievance?.data.category).toBe("Lift / escalator");
+    expect(earlyIssue.context.grievance?.data.description).toBe("lift is stuck");
+    expect(earlyIssue.context.grievance?.data.location).toBeUndefined();
+    const finalLocation = respond("Guindy", earlyIssue.context);
+    expect(finalLocation.context.grievance?.step).toBe("datetime");
+  });
+
+  it("a detailed incident submitted at description step is not mistaken for a category", () => {
+    const first = respond("Report a problem", existingJourney);
+    const op = respond("Metro", first.context);
+    const place = respond("Guindy", op.context);
+    const category = respond("lift", place.context);
+    const desc = respond("lift is stuck", category.context);
+    expect(desc.context.grievance?.step).toBe("datetime");
+    expect(desc.context.grievance?.data.description).toBe("lift is stuck");
+  });
+
+  it("does not misfile a location-only answer as the complaint category", () => {
+    const started = respond("Report a problem", existingJourney);
+    const operator = respond("Metro", started.context);
+    const place = respond("Guindy", operator.context);
+    const wrong = respond("Tambaram", place.context);
+    expect(wrong.context.grievance?.step).toBe("category");
+    expect(wrong.context.grievance?.data.location).toContain("Tambaram");
+    expect(wrong.context.grievance?.data.category).toBeUndefined();
+  });
+
+  it("does not misfile time supplied early as a location", () => {
+    const started = respond("Report a problem", existingJourney);
+    const op = respond("Metro", started.context);
+    const early = respond("Today morning", op.context);
+    expect(early.context.grievance?.step).toBe("location");
+    expect(early.context.grievance?.data.datetime).toBe("Today morning");
+    expect(early.context.grievance?.data.location).toBeUndefined();
+  });
+
+  it("keeps the draft explicit, never auto-submits a government grievance", () => {
+    const started = respond("Report a problem", existingJourney);
+    const operator = respond("Metro", started.context);
+    const location = respond("Guindy", operator.context);
+    const cat = respond("lift", location.context);
+    const details = respond("The lift stopped between floors", cat.context);
+    const finished = respond("Not sure", details.context);
+    expect(finished.cards).toHaveLength(1);
+    expect(finished.cards[0]?.kind).toBe("grievance");
+    expect(finished.reply).toMatch(/Nothing has been filed/i);
+    expect(finished.context.grievance).toBeUndefined();
+  });
+
   it("allows cancellation without erasing the journey", () => {
     const started = respond("Report a problem", existingJourney);
     const cancelled = respond("Cancel complaint", started.context);
