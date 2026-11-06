@@ -24,6 +24,8 @@ function itinerary(id:string,mode:"Metro"|"Bus"|"Suburban Rail",
 }
 const blue=itinerary("metro-blue","Metro","BLUE_LINE",25);
 const anotherBlue=itinerary("metro-blue-other","Metro","BLUE_LINE",26);
+// A different GTFS stop sequence on the same affected service is still not a safe alternative.
+anotherBlue.legs[0]!.stops=["Guindy","Alandur","Chennai Airport"];
 const bus=itinerary("bus-70","Bus","MTC-70",46);
 const rail=itinerary("rail","Suburban Rail","SR-BEACH-TBM",38);
 
