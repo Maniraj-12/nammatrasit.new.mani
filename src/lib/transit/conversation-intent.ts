@@ -18,7 +18,8 @@ export function detectPriorityConversationIntent(message: string): PriorityConve
     return null;
   }
 
-  if (/\b(?:file|submit|make|draft|write|register|report)\b.{0,35}\b(?:complaint|grievance|problem|issue)\b/.test(t) ||
+  if (/^(?:i want to\s+|please\s+)?report\b/.test(t) ||
+      /\b(?:file|submit|make|draft|write|register|report)\b.{0,35}\b(?:complaint|grievance|problem|issue)\b/.test(t) ||
       /\b(?:complaint|grievance|report (?:another|a) (?:problem|issue))\b/.test(t) ||
       (!t.endsWith("?") && /\b(?:lift|elevator|escalator)\b.{0,45}\b(?:not working|broken|stuck|out of order)\b/.test(t))) {
     return "grievance";
