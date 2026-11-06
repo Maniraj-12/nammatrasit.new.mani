@@ -2,7 +2,7 @@ import { respond, type ChatReply, type Context } from "./engine";
 import { respondFromFullGtfs } from "./full-gtfs-chat";
 import { normalizeCommuterMessage } from "./intent-recovery";
 import { mergeTravellerContext } from "./judge-context";
-import { isServiceUpdateRequest } from "./conversation-intents";
+import { isExplicitIncidentReport, isServiceUpdateRequest } from "./conversation-intents";
 
 export type ChatTransport = "server" | "local";
 
@@ -32,7 +32,7 @@ export async function requestTransitResponse(
   // after "Which operator?" is an answer to the grievance, not a route query.
   // Process this locally so it remains reliable in AI Studio preview even if
   // the TanStack server function is unavailable.
-  if (enriched.grievance || isServiceUpdateRequest(normalizedMessage)) {
+  if (enriched.grievance || isServiceUpdateRequest(normalizedMessage) || isExplicitIncidentReport(normalizedMessage)) {
     // Explicit service alerts and active complaint questions must not be
     // intercepted by the GTFS route search, including AI Studio preview.
     return { reply: respond(normalizedMessage, enriched), transport: "local" };
