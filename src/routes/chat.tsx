@@ -169,7 +169,9 @@ function ChatPage() {
           : null;
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className={compactMode
+      ? "flex h-[100dvh] min-h-0 min-w-0 bg-background lg:items-center lg:justify-center lg:gap-7 lg:overflow-hidden lg:bg-slate-100 lg:px-6 lg:py-4"
+      : "flex h-[100dvh] min-h-0 bg-background"}>
       {!compactMode && open && (
         <button
           aria-label="Close menu"
@@ -269,7 +271,34 @@ function ChatPage() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      {compactMode && (
+        <section aria-label="Laptop demo controls" className="hidden w-72 shrink-0 flex-col gap-4 lg:flex">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Round 3 · Laptop demo</p>
+            <h2 className="mt-2 text-xl font-bold text-slate-900">Phone-sized assistant preview</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              This interactive phone frame runs directly on your laptop.
+              Ask questions with the keyboard and demonstrate the journey-to-Chennai-One handoff.
+            </p>
+            <a href="/chat"
+              className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+              Switch to full laptop view
+            </a>
+            <a href="https://www.chennaione.in/" target="_blank" rel="noopener noreferrer"
+              className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+              Official Chennai One website ↗
+            </a>
+          </div>
+          <p className="px-2 text-xs leading-relaxed text-slate-600">
+            Prototype preview only. The official Chennai One mobile application is
+            not running inside this browser. Actual booking remains with Chennai One.
+          </p>
+        </section>
+      )}
+
+      <main className={compactMode
+        ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background lg:h-[90dvh] lg:max-h-[850px] lg:w-[440px] lg:flex-none lg:rounded-[2.5rem] lg:border-[7px] lg:border-slate-900 lg:shadow-2xl"
+        : "flex min-h-0 min-w-0 flex-1 flex-col"}>
         <header className="flex items-center gap-3 border-b bg-card px-4 py-3 shadow-xs">
           <button className={compactMode ? "hidden" : "lg:hidden"} aria-label="Open menu" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
@@ -287,8 +316,8 @@ function ChatPage() {
           </div>
           <a href={compactMode ? "/chat" : "/chat?compact=1"}
             className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold hover:bg-muted ${journey ? "hidden sm:inline-flex" : "ml-auto inline-flex"}`}
-            aria-label={compactMode ? "Switch to full assistant layout" : "Open compact mobile assistant layout"}>
-            {compactMode ? "Full view" : "Mobile view"}
+            aria-label={compactMode ? "Switch to full laptop assistant layout" : "Open phone-sized preview on laptop"}>
+            {compactMode ? "Full laptop view" : "Phone preview"}
           </a>
           {journey && (
             <div className="ml-auto flex items-center gap-2">
