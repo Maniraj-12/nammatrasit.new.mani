@@ -1,18 +1,7 @@
-/**
- * Phase 1 judge-demo language slots. This is a transparent local fallback,
- * not an unrestricted generative AI model or a live transport-data provider.
+/** Local fallback for natural-language traveller details.
+ * Deterministic parsing (including limited Tanglish), not a general LLM.
  */
 import type { Context } from "./engine";
-
-export type DemoTurn = { title: string; prompt: string };
-
-export const JUDGE_DEMO_TURNS: readonly DemoTurn[] = [
-  { title: "1 · Tanglish journey", prompt: "Ramapuram lendhu Tidel Park by 10 AM" },
-  { title: "2 · Wheelchair access", prompt: "Grandfather on wheelchair coming with me" },
-  { title: "3 · Two tickets and fare", prompt: "Book 2 Unified Tickets (1 Senior Concession)" },
-  { title: "4 · OMR rain disruption", prompt: "Any rain delay on OMR right now?" },
-  { title: "5 · Lift grievance", prompt: "Guindy Metro North Gate lift is not working!" },
-];
 
 /** Update only traveller details actually mentioned; keep the rest sticky. */
 export function mergeTravellerContext(message: string, oldContext: Context): Context {

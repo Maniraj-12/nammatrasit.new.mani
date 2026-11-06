@@ -36,6 +36,19 @@ describe("Transit chat preview resilience", () => {
     }
   });
 
+  it("does not offer broken traffic comparisons or traffic-adjusted ETA when a user asks about congestion", async () => {
+    const ctx: Context = { origin: "Guindy", destination: "Chennai Airport" };
+    const sendToServer = vi.fn(async () => { throw new Error("server unavailable"); });
+    const result = await requestTransitResponse("Is there traffic congestion now?", ctx, sendToServer);
+    expect(result.transport).toBe("local");
+    expect(sendToServer).not.toHaveBeenCalled();
+    expect(result.reply.reply).toMatch(/live road traffic is not available/i);
+    expect(result.reply.reply).not.toMatch(/open.*compare current road traffic/i);
+    expect(result.reply.cards).toHaveLength(0);
+    expect(result.reply.context.origin).toBe("Guindy");
+    expect(result.reply.context.destination).toBe("Chennai Airport");
+  });
+
   it("preserves conversation context during offline follow-up questions", async () => {
     const send = async () => {
       throw new Error("HTTP 404");

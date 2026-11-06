@@ -78,23 +78,12 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
   const normalized = normalizeCommuterMessage(message);
   const t = normalized.trim().toLowerCase();
   if (/\b(traffic|congestion|road jam|rush.hour|traffic.aware|traffic delay)\b/.test(t)) {
-    const choices = ctx.availableItineraries ?? [];
-    if (!choices.length || !ctx.origin || !ctx.destination) {
-      return {
-        reply: "Tell me your starting point and destination first, then I can compare MTC road congestion against the available Metro and suburban journey estimates.",
-        cards: [], suggestions: ["Koyambedu to Guindy", "Show all options"],
-        context: ctx, intent: "general", status: "OK",
-      };
-    }
+    // No authorised traffic provider is currently connected. Do not advertise
+    // a traffic comparison button or imply a current congestion-aware ETA.
     return {
-      reply: "These are your currently available journeys. Open **Compare current road traffic** beneath the selected journey to request TomTom's live-versus-historical congestion estimate for MTC bus legs. Metro and suburban journey times are still static estimates, not live train ETAs. The TomTom API key must be configured securely on your server before traffic checks work. No Google Cloud billing is needed.",
-      cards: [
-        { kind: "route_options" as const, options: choices,
-          origin: ctx.origin, destination: ctx.destination,
-          activeItineraryId: ctx.activeItineraryId ?? choices[0]!.id,
-          selectedFilter: "All" },
-      ],
-      suggestions: ["Which is faster?", "Show all options", "Show mixed routes"],
+      reply: "Live road traffic is not available in NammaTransit AI right now, so I cannot verify current congestion or predict a traffic-adjusted bus arrival. Journey times are static GTFS-based estimates; Metro and suburban journeys are not road-traffic dependent. You can still compare the available scheduled route options.",
+      cards: [],
+      suggestions: ["Show all options", "Which is faster?", "Show mixed routes"],
       context: ctx, intent: "general", status: "OK",
     };
   }

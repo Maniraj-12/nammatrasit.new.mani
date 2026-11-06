@@ -76,6 +76,21 @@ describe("Route alternatives card", () => {
     expect(screen.getByText(/Currently selected journey/)).toBeTruthy();
   });
 
+  it("always displays the static map without offering unavailable traffic comparison", () => {
+    render(
+      <RouteOptionsCard
+        options={options}
+        origin="Koyambedu"
+        destination="Chennai Airport"
+        activeItineraryId="metro"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Compare current road traffic/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Check current road traffic/i })).toBeNull();
+    expect(screen.getByLabelText("Selected transit route map")).toBeTruthy();
+    expect(screen.getByText(/FASTEST EST\./i)).toBeTruthy();
+  });
+
   it("filters Mixed independently and toggles details", () => {
     render(
       <RouteOptionsCard

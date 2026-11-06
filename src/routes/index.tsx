@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Conversational multimodal transit assistant for Chennai. Plan journeys across CMRL Metro, MTC Buses and Suburban Rail with verified fares, timings and accessibility.",
+          "Conversational Chennai transit prototype. Explore Metro, MTC Bus and Suburban Rail routes, estimated fares, static maps and accessibility references.",
       },
       { property: "og:title", content: "NammaTransit AI — Your Chennai Journey, Simplified" },
       {
@@ -46,8 +46,8 @@ const features = [
   },
   {
     icon: Ticket,
-    title: "Verified Fares & Ticketing",
-    text: "Canonical GTFS tariff calculation, QR discounts and official portal links.",
+    title: "Fare Estimates & Ticket Links",
+    text: "Transparent fare references and estimates, with official ticketing links. No tickets are issued by this prototype.",
   },
   {
     icon: Accessibility,
