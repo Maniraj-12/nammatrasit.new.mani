@@ -390,10 +390,15 @@ function ChatPage() {
                               lastReferencedItineraryId: previous.activeItineraryId,
                               activeItineraryId: itinerary.id,
                               modePreference: "All",
-                              availableItineraries:
-                                c.kind === "route_options"
-                                  ? c.options
-                                  : previous.availableItineraries,
+                              // A disruption reroute can come from a fresh GTFS search,
+                              // not just the original carousel. Keep it in
+                              // conversation memory for later fare/map followups.
+                              availableItineraries: (() => {
+                                const known = c.kind === "route_options"
+                                  ? c.options : (previous.availableItineraries ?? []);
+                                return known.some((option) => option.id === itinerary.id)
+                                  ? known : [...known, itinerary];
+                              })(),
                             }));
                           }}
                         />
