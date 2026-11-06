@@ -26,7 +26,8 @@ export function detectPriorityConversationIntent(message: string): PriorityConve
   if (/\b(?:service|transport|metro|mtc|bus|train|suburban|rail)\s+(?:status|updates?|alerts?|disruptions?)\b/.test(t) ||
       /\b(?:show|check|any|latest|current|what(?:'s| is))\b.{0,35}\b(?:service\s+updates?|service\s+alerts?|disruptions?|breakdowns?|cancellations?)\b/.test(t) ||
       /\b(?:rain|waterlogging|flood|strike)\s+(?:delay|disruption|closure|updates?)\b/.test(t) ||
-      /\b(?:delay|disruption|cancellation|service alerts?)\b/.test(t) ||
+      /\b(?:delays?|disruptions?|cancellations?|service alerts?)\b/.test(t) ||
+      /\b(?:service|operator)\s+(?:status|updates?|alerts?)\b/.test(t) ||
       /\b(?:any|are there)\s+(?:rain|service|train|bus|metro)\s+delays?\b/.test(t) ||
       /\b(?:status|updates?|alerts?)\s+(?:of|for)\s+(?:the\s+)?(?:bus|metro|train|suburban|mtc|transport|services?)\b/.test(t) ||
       /\b(?:any|is there)\s+(?:station|service|route|line)\s+(?:closure|closed|cancellation)\b/.test(t)) {
