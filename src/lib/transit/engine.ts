@@ -1136,7 +1136,13 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
   if (inferred.operator) data.operator = inferred.operator;
   if (inferred.location && (g.step === "location" || !data.location)) data.location = inferred.location;
   if (inferred.category && (g.step === "category" || !data.category)) data.category = inferred.category;
-  if (inferred.description && (g.step === "description" || !data.description)) data.description = inferred.description;
+  // A bare issue label ("dirty", "breakdown", "bus skipped stop") is a
+  // category answer, not a full description of what happened.
+  const shortCategoryOnly = g.step === "category" && !!inferred.category &&
+    value.length <= 24 &&
+    !/\b(?:is|was|were|has|have|not|stopped|failed|refused|while|between|at|on|my|the|it|did|cannot)\b/i.test(value);
+  if (inferred.description && !shortCategoryOnly &&
+      (g.step === "description" || !data.description)) data.description = inferred.description;
   if (inferred.datetime && !data.datetime) data.datetime = inferred.datetime;
 
   if (g.step === "operator") {
@@ -1204,7 +1210,7 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
     if (!data.datetime) {
       if (!likelyIncidentTime(value)) {
         return requestGrievanceDetail({ ...ctx, grievance: { step: "datetime", data } },
-          "When did it happen? Try 'Today morning', 'Yesterday 6 PM' or 'Not sure'. The rest of your complaint is saved.",
+          "Please tell me approximately when it happened. Try 'Today morning', 'Yesterday 6 PM' or 'Not sure'. The rest of your complaint is saved.",
           ["Today morning", "Yesterday evening", "Not sure"]);
       }
       data.datetime = value;
