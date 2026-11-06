@@ -1068,7 +1068,7 @@ function inferGrievanceFacts(message: string): GrievanceDraft {
   const category = grievanceCategory(original);
   if (category) data.category = category;
   // Preserve the original commuter's words; do not fabricate incidents.
-  if (/\b(?:not working|broken|stuck|out of order|skipp?ed|breakdown|broke down|overcrowd|dirty|unclean|failed|refused|did not stop)\b/i.test(original)) {
+  if (/\b(?:not working|isn't working|doesn't work|not functioning|stopped working|broken|stuck|out of order|skipp?ed|breakdown|broke down|overcrowd|dirty|unclean|failed|refused|did not stop|didn't stop)\b/i.test(original)) {
     data.description = original;
   }
   const happenedAt = original.match(/\b(?:today|yesterday)\s+(?:morning|afternoon|evening|night)\b/i);
@@ -1228,7 +1228,7 @@ export function respond(message: string, ctxIn: Context = {}): ChatReply {
   if (
     has(
       t,
-      /complain|complaint|grievance|report (a )?problem|report an issue|report another|file a complaint/,
+      /\bcomplain|\bcomplaint|\bgrievance|\breport\b|file a complaint/,
     )
   ) {
     // A direct report may already contain the operator, exact gate, issue
