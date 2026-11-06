@@ -33,6 +33,10 @@ export function ActiveMemoryBar({context}: {context:Context}) {
         <div className="flex flex-wrap gap-1.5">
           <Pill label="From" value={context.origin || "Not set"}/>
           <Pill label="To" value={context.destination || "Not set"}/>
+          {context.pendingJourney && (
+            <Pill label="New journey" value={context.pendingJourney.origin
+              ? "Awaiting destination" : "Awaiting starting point"} alert/>
+          )}
           <Pill label="Passengers" value={String(context.passengers ?? 1)}/>
           <Pill label="Concession" value={concession}/>
           <Pill label="Wheelchair" value={context.wheelchairRequired ? "Required" : "Not requested"}
