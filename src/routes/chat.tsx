@@ -87,10 +87,14 @@ function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [usingLocalPlanner, setUsingLocalPlanner] = useState(false);
   const [open, setOpen] = useState(false);
+  // Compact browser view for a mobile-oriented demonstration. This is not
+  // a claim that NammaTransit AI is embedded inside the official Chennai One app.
+  const [compactMode, setCompactMode] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    setCompactMode(new URLSearchParams(window.location.search).get("compact") === "1");
     try {
       const s = JSON.parse(localStorage.getItem(KEY) || "null") as Saved | null;
       if (s?.messages?.length) {
@@ -166,7 +170,7 @@ function ChatPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      {open && (
+      {!compactMode && open && (
         <button
           aria-label="Close menu"
           className="fixed inset-0 z-30 bg-foreground/40 lg:hidden"
@@ -175,7 +179,7 @@ function ChatPage() {
       )}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-76 flex-col bg-sidebar p-5 text-sidebar-foreground transition-transform lg:static lg:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
+          compactMode ? "hidden" : open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between">
@@ -267,7 +271,7 @@ function ChatPage() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b bg-card px-4 py-3 shadow-xs">
-          <button className="lg:hidden" aria-label="Open menu" onClick={() => setOpen(true)}>
+          <button className={compactMode ? "hidden" : "lg:hidden"} aria-label="Open menu" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
@@ -281,6 +285,11 @@ function ChatPage() {
               </p>
             </div>
           </div>
+          <a href={compactMode ? "/chat" : "/chat?compact=1"}
+            className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold hover:bg-muted ${journey ? "hidden sm:inline-flex" : "ml-auto inline-flex"}`}
+            aria-label={compactMode ? "Switch to full assistant layout" : "Open compact mobile assistant layout"}>
+            {compactMode ? "Full view" : "Mobile view"}
+          </a>
           {journey && (
             <div className="ml-auto flex items-center gap-2">
               <span className="hidden rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent md:inline-flex items-center gap-1">
@@ -296,6 +305,11 @@ function ChatPage() {
             </div>
           )}
         </header>
+        {compactMode && (
+          <div role="note" className="border-b border-emerald-200 bg-emerald-50 px-4 py-1.5 text-center text-[11px] text-emerald-900">
+            Mobile demo view · independent prototype · official Chennai One booking opens separately
+          </div>
+        )}
         <ActiveMemoryBar context={context} />
         {usingLocalPlanner && (
           <div

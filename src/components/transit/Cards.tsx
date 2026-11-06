@@ -26,6 +26,7 @@ import { fareText, type Card, type CanonicalItinerary, type ComparisonItem } fro
 import { ROUTE_FILTERS, filterRouteOptions, routeFilterCounts, routeHighlights, type RouteFilter } from "@/lib/transit/route-options";
 import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/data";
 import { RouteMap } from "./RouteMap";
+import { ChennaiOneHandoff } from "./ChennaiOneHandoff";
 
 const Badge = ({
   children,
@@ -223,6 +224,7 @@ function JourneyCard({ itinerary: j }: { itinerary: CanonicalItinerary }) {
           </div>
           <p className="italic text-[11px] opacity-80">{j.timingLabel}</p>
         </div>
+        <ChennaiOneHandoff itinerary={j} />
       </div>
     </Shell>
   );
@@ -408,6 +410,7 @@ function FareBreakdownCard({ itinerary: j }: { itinerary: CanonicalItinerary }) 
             Tickets must be purchased through official channels.
           </p>
         </div>
+        <ChennaiOneHandoff itinerary={j} />
       </div>
     </Shell>
   );
@@ -923,6 +926,7 @@ export function RouteOptionsCard({
           <p className="mt-2 text-[11px] italic text-muted-foreground">
             {selected.timingLabel} Fares and timings are estimates or reference values; not live arrivals.
           </p>
+          <ChennaiOneHandoff itinerary={selected} />
         </section>
       )}
     </section>
