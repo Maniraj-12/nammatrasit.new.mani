@@ -1124,6 +1124,12 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
   }
 
   const facts = inferGrievanceFacts(value);
+  // Users often give the time before the station or category. Keep that
+  // information in its proper slot instead of treating it as a place name.
+  if (g.step !== "datetime" &&
+      /^(?:(?:today|yesterday)(?:\\s+(?:morning|afternoon|evening|night|\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)))?|just now|not sure|unknown)$/i.test(value)) {
+    return nextGrievanceReply({ ...g.data, datetime: value }, ctx);
+  }
   if (g.step === "operator") {
     if (!facts.operator) {
       const merged = { ...g.data, ...(facts.category ? { category: facts.category } : {}) };
