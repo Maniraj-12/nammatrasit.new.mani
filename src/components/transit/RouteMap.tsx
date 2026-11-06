@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, MapPinned, RadioTower } from "lucide-react";
 import type { CanonicalItinerary } from "@/lib/transit/engine";
 import {
-  itineraryMapSegments, type TransitMapSegment,
+  itineraryMapSegments, recoverItineraryMapSegments, type TransitMapSegment,
 } from "@/lib/transit/route-map-data";
+import { loadFullGtfs } from "@/lib/transit/full-gtfs";
 import { roadAlignedBusPath } from "@/lib/transit/road-routing";
 import { LiveArrivalStatus } from "./LiveArrivalStatus";
 import "leaflet/dist/leaflet.css";
@@ -18,36 +19,53 @@ export function RouteMap({ itinerary }: { itinerary: CanonicalItinerary }) {
   const segments = useMemo(() => itineraryMapSegments(itinerary), [itinerary]);
   const [mappedSegments, setMappedSegments] = useState<TransitMapSegment[]>(segments);
   const [roadStatus, setRoadStatus] = useState<"none" | "loading" | "ready" | "unavailable">("none");
+  const [stopStatus, setStopStatus] = useState<"ready" | "loading" | "unavailable">(segments.length ? "ready" : "loading");
 
   useEffect(() => {
     let cancelled = false;
     setMappedSegments(segments);
+    setStopStatus(segments.length ? "ready" : "loading");
 
-    const needsRoad = segments.some((segment) =>
-      segment.mode === "Bus" && !segment.geometry && segment.coordinates.length >= 2);
-    if (!needsRoad) {
-      setRoadStatus("none");
-      return () => { cancelled = true; };
-    }
-    setRoadStatus("loading");
-
-    void Promise.all(segments.map(async (segment): Promise<TransitMapSegment> => {
-      if (segment.mode !== "Bus" || segment.geometry || segment.coordinates.length < 2) {
-        return segment;
+    // Static planner branches can omit geo fields. Look up *only* exact
+    // same-mode stop names in the bundled ChennaiGTFS feed. Never invent
+    // routes or display a straight line between unmatched points.
+    void (async () => {
+      let resolved = segments;
+      if (!segments.length) {
+        const index = await loadFullGtfs();
+        if (cancelled) return;
+        resolved = index ? recoverItineraryMapSegments(itinerary,index) : [];
+        setStopStatus(resolved.length ? "ready" : "unavailable");
       }
-      const road = await roadAlignedBusPath(segment.coordinates);
-      return road ? {
-        ...segment, geometry: road, geometrySource: "road-router",
-      } : segment;
-    })).then((result) => {
+
+      setMappedSegments(resolved);
+      const needsRoad = resolved.some((segment) =>
+        segment.mode === "Bus" && segment.coordinateSource !== "gtfs-name-lookup" &&
+        !segment.geometry && segment.coordinates.length >= 2);
+      if (!needsRoad) {
+        setRoadStatus("none");
+        return;
+      }
+      setRoadStatus("loading");
+
+      const result = await Promise.all(resolved.map(async (segment): Promise<TransitMapSegment> => {
+        if (segment.mode !== "Bus" || segment.coordinateSource === "gtfs-name-lookup" ||
+            segment.geometry || segment.coordinates.length < 2) {
+          return segment;
+        }
+        const road = await roadAlignedBusPath(segment.coordinates);
+        return road ? {
+          ...segment, geometry: road, geometrySource: "road-router",
+        } : segment;
+      }));
       if (cancelled) return;
       setMappedSegments(result);
       setRoadStatus(result.some((segment) => segment.geometrySource === "road-router")
         ? "ready" : "unavailable");
-    });
+    })();
 
     return () => { cancelled = true; };
-  }, [segments]);
+  }, [segments, itinerary]);
 
   useEffect(() => {
     if (!host.current || !mappedSegments.length) return;
@@ -62,9 +80,10 @@ export function RouteMap({ itinerary }: { itinerary: CanonicalItinerary }) {
         zoomControl: true,
         attributionControl: true,
       });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
+        referrerPolicy: "strict-origin-when-cross-origin",
       }).addTo(map);
 
       const colours: Record<string, string> = {
@@ -147,7 +166,7 @@ export function RouteMap({ itinerary }: { itinerary: CanonicalItinerary }) {
         </span>
       </div>
 
-      {segments.length ? (
+      {mappedSegments.length ? (
         <div
           ref={host}
           className="h-[245px] w-full overflow-hidden rounded-lg border bg-slate-100 sm:h-[325px]"
@@ -155,8 +174,10 @@ export function RouteMap({ itinerary }: { itinerary: CanonicalItinerary }) {
           aria-label="Map showing selected transit stops and aligned paths where verified geometry is available"
         />
       ) : (
-        <div className="grid h-28 place-items-center rounded-lg border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
-          Geographic stop coordinates are not available for this journey.
+        <div className="grid h-28 place-items-center rounded-lg border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground" role="status">
+          {stopStatus === "loading"
+            ? "Looking up station and bus-stop coordinates in the bundled ChennaiGTFS data…"
+            : "No unambiguous GTFS stop coordinates are available for these legs. The route is shown as text rather than an invented map path."}
         </div>
       )}
 
@@ -167,6 +188,9 @@ export function RouteMap({ itinerary }: { itinerary: CanonicalItinerary }) {
       </div>
 
       <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+        {mappedSegments.some((segment) => segment.coordinateSource === "gtfs-name-lookup") && (
+          <p>Some stop markers were recovered by exact same-mode names from the bundled GTFS catalogue. They are source stop positions, not a verified physical route or live vehicle locations.</p>
+        )}
         {mappedSegments.some((segment) => segment.geometrySource === "gtfs-shape") && (
           <p>Metro track alignment follows the published trip's GTFS shape, where the source matches your boarding and alighting stations.</p>
         )}

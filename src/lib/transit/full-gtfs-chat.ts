@@ -243,13 +243,15 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
       " journey option(s) using the complete ChennaiGTFS route-pattern index for " +
       from.origin + " to " + from.destination +
       ". Select a route below to see all stops and vehicle changes. Journey durations are approximate; current service times and fares are not verified.",
+    // Always use the map-capable route selector—even for a single itinerary.
+    // The older single-journey branch rendered only JourneyCard, which has no
+    // RouteMap component; this made legitimate Tanglish journeys appear mapless.
     cards: [
-      ...(routes.length > 1 ? [{
+      {
         kind: "route_options" as const, options: routes,
         activeItineraryId: first.id, origin: from.origin,
         destination: from.destination, selectedFilter: mode,
-      }] : []),
-      { kind: "journey" as const, itinerary: first },
+      },
     ],
     suggestions: ["Show all options", "Show mixed routes", "Which is faster?", "Show the fare breakdown"],
     context: {

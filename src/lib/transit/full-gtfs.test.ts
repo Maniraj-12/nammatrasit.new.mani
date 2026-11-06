@@ -67,6 +67,20 @@ describe("Complete Chennai unified GTFS feed", () => {
 });
 
 describe("Chennai commuter journey smoke checks", () => {
+  it("has source stop coordinates for the Tanglish judge journey Ramapuram to Tidel Park", () => {
+    const normalized = normalizeCommuterMessage("Ramapuram lendhu Tidel Park by 10 AM");
+    expect(normalized).toBe("Ramapuram to Tidel Park");
+    const originStops = findFullStops(network, "Ramapuram");
+    const destinationStops = findFullStops(network, "Tidel Park");
+    expect(originStops.some((id) => typeof raw.stops[id]?.[2] === "number" && typeof raw.stops[id]?.[3] === "number")).toBe(true);
+    expect(destinationStops.some((id) => typeof raw.stops[id]?.[2] === "number" && typeof raw.stops[id]?.[3] === "number")).toBe(true);
+    // The map must correspond to a journey from the actual GTFS graph—not
+    // merely two unrelated location markers.
+    const journeys = planFullGtfs(network, "Ramapuram", "Tidel Park", "All", 3);
+    expect(journeys.length).toBeGreaterThan(0);
+    expect(journeys[0]!.legs.length).toBeGreaterThan(0);
+  }, 15000);
+
   it("searches the real unified feed for Koyambedu to Chennai Airport", () => {
     const routes = planFullGtfs(network, "Koyambedu", "Chennai Airport", "All", 4);
     expect(routes.length).toBeGreaterThan(0);
