@@ -40,7 +40,8 @@ export function normalizeCommuterMessage(message: string): string {
   // Assertive malfunction reports should start a grievance draft.
   // Questions about whether a lift works must not be treated as filed reports.
   if (!/\?/.test(result) &&
-      /\b(?:lift|elevator)\b.*\b(?:not working|broken|stuck|out of order)\b/i.test(result) &&
+      (/\b(?:lift|elevator|escalator)\b.*\b(?:not working|isn't working|doesn't work|not functioning|stopped working|broken|stuck|out of order)\b/i.test(result) ||
+        /\b(?:mtc\s+)?bus\s*(?:route\s*)?#?\s*[0-9]{1,4}[a-z]{0,3}\b.*\b(?:skipped|didn't stop|did not stop|broke down|breakdown)\b/i.test(result)) &&
       !/\b(?:report|complaint|grievance)\b/i.test(result)) {
     result = "Report a problem: " + result;
   }
