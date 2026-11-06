@@ -57,7 +57,7 @@ const KEY = "nammatransit-conversation";
 const WELCOME: Msg = {
   id: "w",
   role: "assistant",
-  text: "Vanakkam! I'm NammaTransit AI — your mobility companion for Chennai. Ask me about multimodal journeys across Chennai Metro, MTC Buses, and Southern Railway Suburban trains, official fare breakdowns, station accessibility, and service alerts, or let me help draft a complaint. I remember your journey across follow-up questions.",
+  text: "Vanakkam! I'm NammaTransit AI — your mobility companion for Chennai. Ask me about multimodal journeys across Chennai Metro, MTC Buses, and Southern Railway Suburban trains, estimated fare breakdowns and official ticketing links, station accessibility, and simulated service alerts, or let me help draft a complaint. I remember your journey across follow-up questions.",
 };
 
 const START_CHIPS = [
