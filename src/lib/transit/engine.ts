@@ -1028,11 +1028,11 @@ function grievanceCategory(message: string): string | undefined {
   if (/\b(lift|elevator|escalator|wheelchair lift|escalatr)\b/.test(t)) return "Lift / escalator";
   if (/\b(skipp?ed|missed|did(?:n'?t| not) stop)\b.{0,35}\b(stop|station)\b|\b(stop|station)\b.{0,35}\b(skipp?ed|missed)\b/.test(t)) return "Bus skipped stop";
   if (/\b(breakdown|broke down|engine failure|vehicle stopped)\b/.test(t)) return "Vehicle breakdown";
-  if (/\b(crowd|overcrowd|packed)\b/.test(t)) return "Overcrowding";
+  if (/\b(?:crowd(?:ed|ing)?|overcrowd(?:ed|ing)?|packed)\b/.test(t)) return "Overcrowding";
   if (/\b(clean|cleanliness|dirty|unclean|rubbish|garbage)\b/.test(t)) return "Cleanliness";
   if (/\b(staff|driver|conductor|rude|behaviour|behavior)\b/.test(t)) return "Staff behaviour";
   if (/\b(ticket|refund|payment|fare|qr code)\b/.test(t)) return "Ticketing";
-  if (/\b(delay|late|cancelled|cancellation)\b/.test(t)) return "Service delay";
+  if (/\b(delay(?:ed|s)?|late|cancelled|cancellation)\b/.test(t)) return "Service delay";
   if (/^(?:other|something else|miscellaneous)$/.test(t)) return "Other";
   return undefined;
 }
@@ -1090,7 +1090,7 @@ function inferGrievanceFacts(message: string): GrievanceDraft {
 
   // Don't treat an empty "report a problem" request as a description.
   // Keep the original wording, not a generated or exaggerated accusation.
-  if (/\b(?:not working|broken|stuck|out of order|skipp?ed|breakdown|broke down|overcrowd|dirty|unclean|failed|refused)\b/i.test(original)) {
+  if (/\b(?:not working|broken|stuck|stopped|out of order|skipp?ed|did not stop|didn\x27t stop|breakdown|broke down|overcrowd(?:ed|ing)?|dirty|unclean|failed|refused|unsafe|malfunction|delayed)\b/i.test(original)) {
     data.description = original;
   }
 
