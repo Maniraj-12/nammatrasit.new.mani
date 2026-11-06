@@ -1061,7 +1061,7 @@ function grievanceClarification(ctx: Context, reply: string, chips: string[] = [
 function serviceUpdateReply(ctx: Context): ChatReply {
   const hasDraft = Boolean(ctx.grievance);
   return {
-    reply: "These are **simulated demonstration service alerts**, not verified current Chennai service updates." +
+    reply: "I will check published CMRL and MTC operator notices below. They are **not a live operations-status feed**. The separate demonstration alerts are simulated and must not be mistaken for real incidents." +
       (hasDraft ? " Your unfinished complaint is saved; you can continue answering its last question." : ""),
     cards: [{ kind: "alerts", alerts: DEMO_ALERTS }],
     suggestions: hasDraft
