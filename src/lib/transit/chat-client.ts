@@ -2,6 +2,7 @@ import { respond, type ChatReply, type Context } from "./engine";
 import { respondFromFullGtfs } from "./full-gtfs-chat";
 import { normalizeCommuterMessage } from "./intent-recovery";
 import { mergeTravellerContext } from "./judge-context";
+import { isServiceUpdateRequest } from "./conversation-intents";
 
 export type ChatTransport = "server" | "local";
 
@@ -31,7 +32,9 @@ export async function requestTransitResponse(
   // after "Which operator?" is an answer to the grievance, not a route query.
   // Process this locally so it remains reliable in AI Studio preview even if
   // the TanStack server function is unavailable.
-  if (enriched.grievance) {
+  if (enriched.grievance || isServiceUpdateRequest(normalizedMessage)) {
+    // A service update request is not a GTFS journey query. Resolve it locally
+    // in preview mode so the returned card is always an alert, never a route.
     return { reply: respond(normalizedMessage, enriched), transport: "local" };
   }
   const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, enriched);
