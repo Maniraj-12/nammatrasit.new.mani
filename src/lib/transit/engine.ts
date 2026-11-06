@@ -1079,8 +1079,9 @@ function inferGrievanceFacts(message: string): GrievanceDraft {
 
 function isCategoryOnly(message: string): boolean {
   const t = norm(message);
-  // "Lift" is never a location. "Guindy lift not working" isn't category
-  // only, because it contains a station name and incident description.
+  // "Lift" is a category. "Lift is stuck" is also an incident description,
+  // so do not force the commuter to describe the same problem twice.
+  if (/\b(?:not working|stuck|stopped|broken|skipp?ed|failed|refused|broke down|did not stop)\b/.test(t)) return false;
   return !!grievanceCategory(message) &&
     !grievanceLocation(message) &&
     !/\b(?:station|stop|near|at|road|street|gate|platform|terminal)\b/.test(t) &&
@@ -1143,10 +1144,13 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
       // One follow-up may contain location, category and a description.
       return nextGrievanceReply({ ...g.data, ...facts }, ctx);
     }
-    if (isCategoryOnly(value)) {
-      // "lift" entered at the location question should prefill the issue,
-      // *not* silently write "lift" as a station / bus stop.
-      return nextGrievanceReply({ ...g.data, category: grievanceCategory(value) }, ctx);
+    if (isCategoryOnly(value) || (facts.category && facts.description && !facts.location)) {
+      // "lift" or "lift is stuck" entered at the location question should
+      // prefill the issue (and description), not become a fake station name.
+      return nextGrievanceReply({
+        ...g.data, category: grievanceCategory(value),
+        ...(facts.description ? { description: facts.description } : {}),
+      }, ctx);
     }
     if (/^(?:not sure|unknown|don't know|unsure)$/i.test(value)) {
       return nextGrievanceReply({ ...g.data, location: "Location not specified (commuter unsure)" }, ctx);
