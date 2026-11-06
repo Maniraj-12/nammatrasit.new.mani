@@ -28,8 +28,12 @@ export function normalizeCommuterMessage(message: string): string {
     .replace(/\b(?:poganum|pognum|ponum)\b.*$/i, "")
     .replace(/\s+போகணும்.*$/i, "")
     .replace(/\b[a-z]+\b/gi, (word) => WORD_FIXES[word.toLowerCase()] ?? word)
-    .replace(/\b(metro|bus|train|suburban)\s+far\b/gi, "$1 fare")
-    .replace(/\b(\w+)\s+2\s+(\w+)\b/g, "$1 to $2");
+    .replace(/\b(metro|bus|train|suburban)\s+far\b/gi, "$1 fare");
+  // "Guindy 2 Airport" may be transit shorthand, but "Book 2 Tickets"
+  // is a passenger count and must never become "Book to Tickets".
+  if (!/\b(?:book|ticket|passenger|people|concession)\b/i.test(result)) {
+    result = result.replace(/\b(\w+)\s+2\s+(\w+)\b/g, "$1 to $2");
+  }
   if (/\bto\b/i.test(result)) {
     result = result.replace(/\s+(?:by|before)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b.*$/i, "");
   }
