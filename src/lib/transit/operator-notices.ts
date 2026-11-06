@@ -33,7 +33,7 @@ export const OPERATOR_NOTICE_URLS={
 /** Only announce recent items that can reasonably concern passenger operation.
  * These are published notices, NOT guaranteed active disruptions.
  */
-const relevant=/\b(?:service (?:times?|timings?|updates?|changes?|frequency|interruption)|train service|bus service|schedule changes?|temporary closure|permanent closure|revised|entrances?|entry\/exit|shif(?:t|ted)|relocat(?:e|ed)|diversion|suspend(?:ed|sion)|disrupt(?:ion|ed)|cancel(?:led|lation)|special trains?|track maintenance)\b/i;
+const relevant=/\b(?:service (?:times?|timings?|updates?|changes?|frequency|interruption)|metro connect service|train services?|bus services?|schedule changes?|temporary closure|permanent closure|revised|entrances?|entry\/exit|shif(?:t|ted)|relocat(?:e|ed)|diversion|suspend(?:ed|sion)|disrupt(?:ion|ed)|cancel(?:led|lation)|special trains?|track maintenance)\b/i;
 const decode=(x:string)=>x.replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&")
   .replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'")
   .replace(/&lt;/gi,"<").replace(/&gt;/gi,">");
@@ -78,7 +78,7 @@ export function parseCmrlNotices(html:string,now=new Date()):OperatorNotice[]{
 export function parseMtcNotices(html:string,now=new Date()):OperatorNotice[]{
   const entries:OperatorNotice[]=[];
   // A news-item block normally includes a heading before its Date label.
-  const chunks=html.split(/(?=<h[2-6]\b)/i);
+  const chunks=html.split(/(?=<h[2-5]\b)/i);
   for(const chunk of chunks){
     const heading=chunk.match(/<h[2-6]\b[^>]*>([\s\S]*?)<\/h[2-6]>/i);
     if(!heading)continue;
