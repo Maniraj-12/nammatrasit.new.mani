@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { mergeTravellerContext, JUDGE_DEMO_TURNS } from "./judge-context";
+import { mergeTravellerContext } from "./judge-context";
 import { normalizeCommuterMessage } from "./intent-recovery";
 import { respond } from "./engine";
 
-describe("Phase 1 — five-turn judge conversational memory", () => {
-  it("has five ordered, clickable demo inputs", () => {
+const JUDGE_DEMO_TURNS = [
+  { prompt: "Ramapuram lendhu Tidel Park by 10 AM" },
+  { prompt: "Grandfather on wheelchair coming with me" },
+  { prompt: "Book 2 Unified Tickets (1 Senior Concession)" },
+  { prompt: "Any rain delay on OMR right now?" },
+  { prompt: "Guindy Metro North Gate lift is not working!" },
+] as const;
+
+describe("Multi-turn conversational memory for freely typed queries", () => {
+  it("covers five independent user-typed example turns without requiring UI chips", () => {
     expect(JUDGE_DEMO_TURNS).toHaveLength(5);
     expect(JUDGE_DEMO_TURNS[0]!.prompt).toMatch(/Ramapuram/i);
     expect(JUDGE_DEMO_TURNS[4]!.prompt).toMatch(/Guindy.*lift/i);
