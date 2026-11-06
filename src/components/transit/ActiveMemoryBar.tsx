@@ -39,6 +39,13 @@ export function ActiveMemoryBar({context}: {context:Context}) {
             alert={context.wheelchairRequired}/>
           <Pill label="Disruption" value={context.activeDisruption || "None confirmed"}
             alert={!!context.activeDisruption}/>
+          {context.grievance && (
+            <Pill label="Complaint draft" value={
+              context.grievance.data.location
+                ? `${context.grievance.data.location} · awaiting ${context.grievance.step}`
+                : `Awaiting ${context.grievance.step}`
+            } alert/>
+          )}
           {context.arrivalBy && <Pill label="Arrive by" value={`${context.arrivalBy} · requested`}/>}
           {context.preferredLanguage && <Pill label="Language" value={context.preferredLanguage === "ta" ? "Tamil (basic)" : context.preferredLanguage === "tanglish" ? "Tanglish (basic)" : "English"}/>}
         </div>
