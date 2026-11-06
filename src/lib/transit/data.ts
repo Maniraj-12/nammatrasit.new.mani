@@ -772,10 +772,10 @@ export const DEMO_ALERTS: Alert[] = [
     mode: "Metro",
     type: "Facility",
     description:
-      "Lift near Gate B under scheduled preventive maintenance (simulated scenario). Gate A elevator fully operational.",
-    source: "ChennaiGTFS / CMRL Operations Feed",
+      "Simulated lift maintenance near Gate B. The availability of Gate A or any other elevator must be confirmed with CMRL.",
+    source: "Simulated scenario — NOT a live CMRL feed",
     updatedAt: "2026-11-05T07:30:00+05:30",
-    alternative: "Use Gate A lift or concourse escalator.",
+    alternative: "Ask CMRL staff to confirm a working accessible alternative; do not assume escalators are suitable for wheelchair users.",
   },
   {
     id: "a2",
@@ -784,10 +784,10 @@ export const DEMO_ALERTS: Alert[] = [
     type: "Delay",
     description:
       "Trains running with 4–6 minute extra headway due to track inspection (simulated scenario).",
-    source: "ChennaiGTFS / CMRL Operations Feed",
+    source: "Simulated scenario — NOT a live CMRL feed",
     updatedAt: "2026-11-05T08:15:00+05:30",
     alternative:
-      "MTC Bus routes 70 and 170 available as road-level alternatives along Inner Ring Road.",
+      "Check GTFS-listed MTC bus alternatives; availability and headways are not verified.",
   },
   {
     id: "a3",
@@ -795,8 +795,8 @@ export const DEMO_ALERTS: Alert[] = [
     mode: "Multimodal",
     type: "Crowding",
     description:
-      "Heavy peak-hour footfall expected at Chennai Central interchange between suburban and metro concourse.",
-    source: "ChennaiGTFS Station Operations",
+      "Simulated heavy peak-hour crowding at the Chennai Central interchange; current occupancy is not monitored.",
+    source: "Simulated scenario — NOT a live station feed",
     updatedAt: "2026-11-05T09:00:00+05:30",
   },
   {
@@ -805,11 +805,11 @@ export const DEMO_ALERTS: Alert[] = [
     mode: "Bus",
     type: "Delay",
     description:
-      "Slow moving traffic reported near Ashok Pillar junction; buses running 8-10 mins behind schedule.",
-    source: "MTC Traffic Advisory (Simulated)",
+      "Simulated road congestion at Ashok Pillar with an illustrative 8–10 minute MTC delay; not a measured current delay.",
+    source: "Simulated scenario — NOT a live MTC advisory",
     updatedAt: "2026-11-05T09:30:00+05:30",
     alternative:
-      "CMRL Green Line Metro between Vadapalani and Alandur operates unaffected by road traffic.",
+      "Consider a GTFS-supported Metro alternative; current service operation must be checked.",
   },
   {
     id: "a5",
@@ -817,8 +817,8 @@ export const DEMO_ALERTS: Alert[] = [
     mode: "Suburban Rail",
     type: "Maintenance",
     description:
-      "Night line maintenance scheduled between 23:30 and 03:30. Day suburban services normal.",
-    source: "Southern Railway Chennai Division Advisory",
+      "Simulated overnight maintenance window from 23:30 to 03:30; no real service restriction has been verified.",
+    source: "Simulated scenario — NOT an official railway advisory",
     updatedAt: "2026-11-05T06:00:00+05:30",
   },
 ];
