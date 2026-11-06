@@ -67,7 +67,7 @@ describe("Conversational new-journey slot filling", () => {
     expect(ctx.concessionType).toBe("senior");
     expect(ctx.wheelchairRequired).toBe(true);
     expect(ctx.preferredLanguage).toBe("tanglish");
-    expect(ctx.arrivalBy).toBe("10:00 AM");
+    expect(ctx.arrivalBy).toBeUndefined(); // Time for old trip must not carry into a new journey.
   });
 
   it("asks destination after a plain place name, and routes only after both are provided", async () => {
@@ -112,7 +112,14 @@ describe("Conversational new-journey slot filling", () => {
     expect(next.reply.context.origin).toBe("Ramapuram");
     expect(next.reply.context.destination).toBe("Tidel Park");
     expect(next.reply.context.arrivalBy).toBe("10:00 AM");
-    expect(next.reply.cards.some(x => x.kind === "route_options")).toBe(true);
+    // GTFS routes appear if full data is available. If only the tiny curated
+    // fallback is loaded, it must NOT invent a different destination.
+    if (next.reply.cards.some(x => x.kind === "route_options")) {
+      expect(next.reply.context.destination).toBe("Tidel Park");
+    } else {
+      expect(next.reply.status).toBe("NO_MATCH_IN_DATASET");
+      expect(next.reply.reply).toMatch(/full ChennaiGTFS route data is unavailable/i);
+    }
   });
 
   it("does not assume 'metro' is a location and allows correcting previous origin", async () => {
