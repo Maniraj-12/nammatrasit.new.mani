@@ -2,6 +2,7 @@ import { respond, type ChatReply, type Context } from "./engine";
 import { respondFromFullGtfs } from "./full-gtfs-chat";
 import { normalizeCommuterMessage } from "./intent-recovery";
 import { mergeTravellerContext } from "./judge-context";
+import { detectPriorityConversationIntent } from "./conversation-intent";
 
 export type ChatTransport = "server" | "local";
 
@@ -31,7 +32,9 @@ export async function requestTransitResponse(
   // after "Which operator?" is an answer to the grievance, not a route query.
   // Process this locally so it remains reliable in AI Studio preview even if
   // the TanStack server function is unavailable.
-  if (enriched.grievance) {
+  if (enriched.grievance || detectPriorityConversationIntent(normalizedMessage)) {
+    // Deterministic multi-turn and non-routing intents must not be hijacked
+    // by a GTFS route search when the user says "show service updates".
     return { reply: respond(normalizedMessage, enriched), transport: "local" };
   }
   const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, enriched);
