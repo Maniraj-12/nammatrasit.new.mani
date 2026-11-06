@@ -49,7 +49,7 @@ function canonicalStopName(s: string): string {
     .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function plausibleChennaiStop(stop: GtfsStop): stop is [string,string,number,number, ...unknown[]] {
+function plausibleChennaiStop(stop: GtfsStop): boolean {
   return typeof stop[2] === "number" && typeof stop[3] === "number" &&
     Number.isFinite(stop[2]) && Number.isFinite(stop[3]) &&
     stop[2] >= 12.5 && stop[2] <= 13.7 && stop[3] >= 79.5 && stop[3] <= 80.7;
