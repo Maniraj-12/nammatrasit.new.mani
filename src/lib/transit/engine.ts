@@ -1035,7 +1035,7 @@ export function normalizeComplaintCategory(value: string): string | undefined {
   if (/\b(?:breakdown|broke down|vehicle stopped|bus stopped|engine failure)\b/.test(t)) return "Vehicle breakdown";
   if (/\b(?:overcrowd(?:ed|ing)?|crowded|crowding|too many people)\b/.test(t)) return "Overcrowding";
   if (/\b(?:unclean|dirty|cleanliness|cleaning|hygiene|litter|garbage)\b/.test(t)) return "Cleanliness";
-  if (/\b(?:staff|behaviour|behavior|misbehav|rude|driver attitude|conductor attitude)\b/.test(t)) return "Staff behaviour";
+  if (/\b(?:staff|behaviour|behavior|misbehav\w*|rude|driver attitude|conductor attitude)\b/.test(t)) return "Staff behaviour";
   if (/\b(?:ticket|ticketing|payment|refund|overcharg|fare charg)\b/.test(t)) return "Ticketing";
   if (/^(?:other|something else|other problem)$/.test(t)) return "Other";
   return undefined;
@@ -1098,7 +1098,10 @@ function inferGrievanceFacts(message: string): GrievanceDraft {
 
   // Don't treat an empty "report a problem" request as a description.
   // Keep the original wording, not a generated or exaggerated accusation.
-  if (/\b(?:not working|broken|stuck|out of order|skipp?ed|breakdown|broke down|overcrowd|dirty|unclean|failed|refused)\b/i.test(original)) {
+  // A standalone category word such as "dirty" or "lift" is not a
+  // description. Keep it as the issue category and ask what happened.
+  if (original.split(/\s+/).filter(Boolean).length >= 3 &&
+      /\b(?:not working|broken|stuck|out of order|skipp?ed|breakdown|broke down|overcrowd|dirty|unclean|failed|refused)\b/i.test(original)) {
     data.description = original;
   }
 
