@@ -48,10 +48,40 @@ export async function requestTransitResponse(
   }
   if (dialogue?.kind === "complete") {
     const route = await respondFromFullGtfs(dialogue.query, dialogue.context);
-    return {
-      reply: route ?? respond(dialogue.query, dialogue.context),
-      transport: "local",
-    };
+    if (route) return { reply: route, transport: "local" };
+
+    // The tiny curated offline planner can resolve a partial alias to an
+    // unrelated destination. Reject that mismatch rather than showing a
+    // confident-looking journey for the wrong endpoint.
+    const fallback = respond(dialogue.query, dialogue.context);
+    const sameEndpoints =
+      fallback.context.origin?.toLowerCase() === dialogue.origin.toLowerCase() &&
+      fallback.context.destination?.toLowerCase() === dialogue.destination.toLowerCase();
+    const matchesCards = fallback.cards.every((card) => {
+      const itineraries = card.kind === "route_options" ? card.options :
+        card.kind === "journey" || card.kind === "fare_breakdown" ? [card.itinerary] : [];
+      return itineraries.every((item) =>
+        item.origin.toLowerCase() === dialogue.origin.toLowerCase() &&
+        item.destination.toLowerCase() === dialogue.destination.toLowerCase());
+    });
+    if (!sameEndpoints || !matchesCards) {
+      return {
+        transport: "local",
+        reply: {
+          reply: "I've noted your new journey from **" + dialogue.origin + "** to **" +
+            dialogue.destination + "**. The full ChennaiGTFS route data is unavailable " +
+            "in this preview, and I can't verify a matching route from the smaller " +
+            "offline catalogue. Please try again when the dataset loads, or give another stop name.",
+          cards: [],
+          suggestions: ["Plan another journey", "Show service updates"],
+          context: { ...dialogue.context, availableItineraries: [],
+            activeItineraryId: undefined },
+          intent: "route_search",
+          status: "NO_MATCH_IN_DATASET",
+        },
+      };
+    }
+    return { reply: fallback, transport: "local" };
   }
 
   const fullGtfsReply = await respondFromFullGtfs(normalizedMessage, enriched);
