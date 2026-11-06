@@ -170,6 +170,28 @@ describe("Sticky conversational grievances — Phase 1 regression", () => {
     expect(finish.context.passengers).toBe(2);
   });
 
+  it("when only 'lift is stuck' is supplied, keeps the issue and asks for location", () => {
+    const first = respond("Report a problem", existingJourney);
+    const op = respond("Metro", first.context);
+    const earlyIssue = respond("lift is stuck", op.context);
+    expect(earlyIssue.context.grievance?.step).toBe("location");
+    expect(earlyIssue.context.grievance?.data.category).toBe("Lift / escalator");
+    expect(earlyIssue.context.grievance?.data.description).toBe("lift is stuck");
+    expect(earlyIssue.context.grievance?.data.location).toBeUndefined();
+    const finalLocation = respond("Guindy", earlyIssue.context);
+    expect(finalLocation.context.grievance?.step).toBe("datetime");
+  });
+
+  it("a detailed incident submitted at description step is not mistaken for a category", () => {
+    const first = respond("Report a problem", existingJourney);
+    const op = respond("Metro", first.context);
+    const place = respond("Guindy", op.context);
+    const category = respond("lift", place.context);
+    const desc = respond("lift is stuck", category.context);
+    expect(desc.context.grievance?.step).toBe("datetime");
+    expect(desc.context.grievance?.data.description).toBe("lift is stuck");
+  });
+
   it("does not misfile a location-only answer as the complaint category", () => {
     const started = respond("Report a problem", existingJourney);
     const operator = respond("Metro", started.context);
