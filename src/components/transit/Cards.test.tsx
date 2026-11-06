@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CanonicalItinerary } from "@/lib/transit/engine";
 import { RouteOptionsCard } from "./Cards";
@@ -89,6 +89,41 @@ describe("Route alternatives card", () => {
     expect(screen.queryByRole("button", { name: /Check current road traffic/i })).toBeNull();
     expect(screen.getByLabelText("Selected transit route map")).toBeTruthy();
     expect(screen.getByText(/FASTEST EST\./i)).toBeTruthy();
+  });
+
+  it("offers a verified Chennai One external link for the selected route", () => {
+    render(
+      <RouteOptionsCard options={options} origin="Koyambedu"
+        destination="Chennai Airport" activeItineraryId="metro" />,
+    );
+    const link = screen.getByRole("link", {
+      name: "Open official Chennai One website for ticket booking",
+    });
+    expect(link.getAttribute("href")).toBe("https://www.chennaione.in/");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+    expect(screen.getByText(/not automatically transferred/i)).toBeTruthy();
+  });
+
+  it("copies the currently selected route without pretending to book tickets", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true, value: { writeText },
+    });
+    render(
+      <RouteOptionsCard options={options} origin="Koyambedu"
+        destination="Chennai Airport" activeItineraryId="metro" />,
+    );
+    fireEvent.click(screen.getByRole("button", {
+      name: "Select option 2: MTC Bus 70 + Metro Blue",
+    }));
+    fireEvent.click(screen.getByRole("button", {
+      name: "Copy selected journey details for manual entry in Chennai One",
+    }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText.mock.calls[0][0]).toContain("MTC Bus 70 + Metro Blue");
+    expect(writeText.mock.calls[0][0]).toContain("NOT a ticket");
+    expect(screen.getByText("Journey copied")).toBeTruthy();
   });
 
   it("filters Mixed independently and toggles details", () => {
