@@ -97,7 +97,10 @@ function prompt(ctx: Context, slots: PendingJourney): JourneyDialogueOutcome {
       intent: "route_search",
       context: {
         ...ctx, origin, destination, availableItineraries: [],
-        pendingJourney: { origin, destination },
+        pendingJourney: {
+          ...(origin ? { origin } : {}),
+          ...(destination ? { destination } : {}),
+        },
       },
     },
   };
