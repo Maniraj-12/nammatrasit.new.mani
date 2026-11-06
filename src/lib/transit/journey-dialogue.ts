@@ -24,9 +24,9 @@ export function isNewJourneyRequest(text: string): boolean {
 }
 
 const refuseAsStop =
-  /^(?:yes|no|ok|okay|sure|hello|hi|hey|none|nothing|not sure|don't know|dont know|unknown|skip|place|location|station|stop|here|there|anywhere|metro|bus|train|suburban|all|somewhere|another journey)$/i;
+  /^(?:yes|no|ok|okay|sure|hello|hi|hey|none|nothing|not sure|don't know|dont know|unknown|skip|place|location|station|stop|here|there|anywhere|metro|bus|train|suburban|all|somewhere|another journey|journey|trip|route|from|to|origin|destination|by metro|by bus|by train)$/i;
 const nonLocationQuestion =
-  /^(?:can you|could you|show|check|report|tell me|compare|how|what|when|why|which|does|are|is|book|ticket|fare|price|cost|cancel)\b/i;
+  /^(?:can you|could you|show|check|report|tell me|compare|how|what|when|why|which|does|are|is|book|ticket|fare|price|cost|cancel|i need|i want|i have|i am travelling|i am traveling|we need|we want)\b/i;
 
 function cleanedLocation(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -52,8 +52,8 @@ export function parseJourneyLocations(message: string, waitingFor?: "origin" | "
     const destination = cleanedLocation(paired[2]);
     if (origin && destination) return { origin, destination };
   }
-  const from = text.match(/\b(?:from|starting\s+from|leaving\s+from|departing\s+from|origin\s+(?:is|:)|start\s+(?:is|at))\s+(.+)$/i);
-  const destination = text.match(/\b(?:to|going\s+to|heading\s+to|destination\s+(?:is|:))\s+(.+)$/i);
+  const from = text.match(/\b(?:from|starting\s+from|leaving\s+from|departing\s+from|origin\s+(?:is|:)|start\s+(?:is|at)|(?:my\s+)?starting\s+point\s+(?:is|:)|i\s+am\s+at|i\x27m\s+at)\s+(.+)$/i);
+  const destination = text.match(/\b(?:to|going\s+to|heading\s+to|(?:my\s+)?destination\s+(?:is|:))\s+(.+)$/i);
   if (from) return { origin: cleanedLocation(from[1]) };
   if (destination) return { destination: cleanedLocation(destination[1]) };
   if (waitingFor) {
@@ -140,6 +140,14 @@ export function handleJourneyDialogue(message: string, ctx: Context): JourneyDia
     ? t.replace(newJourneyPattern,"").replace(newJourneyAlternative,"").trim()
     : t;
   const awaiting: "origin" | "destination" = carried.origin ? "destination" : "origin";
+  // Traveller requirements may arrive between origin and destination. Save
+  // those preferences via mergeTravellerContext without misreading the whole
+  // sentence as a station name.
+  if (pending && !starting &&
+      /\b(?:wheelchair|concession|senior citizen|student pass|passengers?|travellers?|travelers?|people|tickets?)\b/i.test(t) &&
+      !/\b(?:from|to|starting point|destination is)\b/i.test(t)) {
+    return prompt(base, carried);
+  }
   const inputs = parseJourneyLocations(unprefixed, awaiting);
   const slots: PendingJourney = { ...carried, ...inputs };
 
