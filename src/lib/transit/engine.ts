@@ -166,6 +166,8 @@ export type Context = {
   lastStation?: string | undefined;
   availableItineraries?: CanonicalItinerary[] | undefined;
   pendingStopClarification?: { kind: "origin" | "destination"; options: string[]; origin: string; destination: string; mode: TransportMode | "All" };
+  /** When planning a new journey, gather new stops without reusing the old route. */
+  pendingJourney?: { origin?: string; destination?: string } | undefined;
   grievance?: { step: keyof GrievanceDraft; data: GrievanceDraft } | undefined;
 };
 
