@@ -94,6 +94,10 @@ function Index() {
                 >
                   Start Chatting <ArrowRight className="h-4 w-4" />
                 </Link>
+                <a href="/chat?compact=1"
+                  className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/30 px-5 py-3 text-sm font-semibold hover:bg-primary-foreground/10">
+                  Mobile Demo View <ArrowRight className="h-4 w-4" />
+                </a>
                 <div className="flex items-center gap-3 text-xs text-primary-foreground/75">
                   <span className="flex items-center gap-1">
                     <TrainFront className="h-3.5 w-3.5 text-accent" /> CMRL Metro
