@@ -1138,7 +1138,7 @@ function continueGrievance(msg: string, ctx: Context): ChatReply {
   if (inferred.category && (g.step === "category" || !data.category)) data.category = inferred.category;
   // A bare issue label ("dirty", "breakdown", "bus skipped stop") is a
   // category answer, not a full description of what happened.
-  const shortCategoryOnly = g.step === "category" && !!inferred.category &&
+  const shortCategoryOnly = !!inferred.category &&
     value.length <= 24 &&
     !/\b(?:is|was|were|has|have|not|stopped|failed|refused|while|between|at|on|my|the|it|did|cannot)\b/i.test(value);
   if (inferred.description && !shortCategoryOnly &&
