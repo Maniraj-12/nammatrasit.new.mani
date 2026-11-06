@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { CanonicalItinerary } from "./engine";
-import { itineraryMapSegments, safeLiveSnapshot } from "./route-map-data";
+import { itineraryMapSegments, recoverItineraryMapSegments, lookupGtfsStopPoint, safeLiveSnapshot } from "./route-map-data";
+import type { FullGtfsIndex } from "./full-gtfs";
+import { normalizeCommuterMessage } from "./intent-recovery";
 
 const sample = {
   id: "test", legs: [
@@ -56,5 +58,75 @@ describe("Selected transit route map data", () => {
       arrivals: [],
     };
     expect(safeLiveSnapshot(packet, now).vehicles).toHaveLength(1);
+  });
+});
+
+
+describe("Tanglish journey map coordinate fallback", () => {
+  // Synthetic GTFS stop locations only; they are not claimed as real-world
+  // coordinates. This tests matching and geometry safety without network.
+  const stops = [
+    ["B1", "Ramapuram", 13.01, 80.18, "Bus", ""],
+    ["B2", "Tidel Park", 12.99, 80.24, "Bus", ""],
+    ["M1", "Ramapuram", 13.4, 80.39, "Metro", ""],
+  ] as FullGtfsIndex["data"]["stops"];
+  const index = {
+    data: { stops, routes: [], patterns: [], walks: [], metadata: {} },
+    rides: [], walks: [], stopNames: [],
+  } as unknown as FullGtfsIndex;
+
+  const single = {
+    id: "tanglish-fallback",
+    mode: "Bus",
+    origin: "Ramapuram",
+    destination: "Tidel Park",
+    legs: [{
+      mode: "Bus", routeName: "Unverified curated bus leg",
+      stops: ["Ramapuram", "Tidel Park"],
+      from: "Ramapuram", to: "Tidel Park",
+    }],
+  } as CanonicalItinerary;
+
+  it("recognises the Tanglish judge journey and recovers source stop markers", () => {
+    expect(normalizeCommuterMessage("Ramapuram lendhu Tidel Park by 10 AM")).toBe("Ramapuram to Tidel Park");
+    expect(itineraryMapSegments(single)).toHaveLength(0);
+    const recovered = recoverItineraryMapSegments(single, index);
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0]?.coordinates).toEqual([[13.01, 80.18], [12.99, 80.24]]);
+    expect(recovered[0]?.coordinateSource).toBe("gtfs-name-lookup");
+    expect(recovered[0]?.geometry).toBeUndefined();
+    expect(recovered[0]?.geometrySource).toBeUndefined();
+  });
+
+  it("never borrows a Metro stop for a Bus itinerary with the same name", () => {
+    expect(lookupGtfsStopPoint(index, "Ramapuram", "Bus")).toEqual([13.01, 80.18]);
+    expect(lookupGtfsStopPoint(index, "Tidel Park", "Metro")).toBeNull();
+  });
+
+  it("does not invent locations for unrecognised or ambiguous GTFS stops", () => {
+    expect(lookupGtfsStopPoint(index, "Nonexistent Tidel Park X", "Bus")).toBeNull();
+    const ambiguous = {
+      ...index,
+      data: { ...index.data, stops: [
+        ...stops, ["B3", "Ramapuram", 13.1, 80.28, "Bus", ""],
+      ] },
+    } as FullGtfsIndex;
+    expect(lookupGtfsStopPoint(ambiguous, "Ramapuram", "Bus")).toBeNull();
+    expect(recoverItineraryMapSegments(single, ambiguous)).toHaveLength(0);
+  });
+
+  it("prefers genuine supplied GTFS geometry over any inferred map markers", () => {
+    const actual = {
+      ...single,
+      legs: [{
+        ...single.legs[0]!,
+        stopCoordinates: [[13.02, 80.19], [13.01, 80.20]],
+        pathCoordinates: [[13.02, 80.19], [13.015, 80.195], [13.01, 80.20]],
+        pathSource: "gtfs-shape",
+      }],
+    } as CanonicalItinerary;
+    const recovered = recoverItineraryMapSegments(actual, index);
+    expect(recovered[0]?.geometrySource).toBe("gtfs-shape");
+    expect(recovered[0]?.coordinateSource).toBe("itinerary-gtfs");
   });
 });
