@@ -28,6 +28,7 @@ import { OFFICIAL_LINKS, type Alert, type StationFacility } from "@/lib/transit/
 import { RouteMap } from "./RouteMap";
 import { ChennaiOneHandoff } from "./ChennaiOneHandoff";
 import { DisruptionRerouteDemo } from "./DisruptionRerouteDemo";
+import { LiveDisruptionsPanel } from "./LiveDisruptionsPanel";
 
 const Badge = ({
   children,
@@ -477,9 +478,15 @@ function AlertsCard({ alerts }: { alerts: Alert[] }) {
     <Shell
       icon={AlertTriangle}
       title="Service Updates & Disruptions"
-      badge={<Badge tone="danger">Simulation · Demo Dataset</Badge>}
+      badge={<Badge tone="warn">Checked public notices · demo alerts separate</Badge>}
     >
-      <div className="space-y-2.5">
+      <div className="space-y-3">
+        <LiveDisruptionsPanel/>
+        <details className="rounded-xl border border-dashed p-3">
+          <summary className="cursor-pointer font-semibold text-xs">
+            Show simulated disruption scenarios (not live)
+          </summary>
+          <div className="mt-3 space-y-2.5">
         {alerts.map((a) => (
           <div key={a.id} className="rounded-xl border border-border/80 bg-muted/40 p-3 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -499,9 +506,10 @@ function AlertsCard({ alerts }: { alerts: Alert[] }) {
           </div>
         ))}
         <p className="text-[11px] text-muted-foreground italic pt-1">
-          Disclaimer: This is a demonstration alert feed for testing mobility disruption response in
-          the CUMTA hackathon.
+          These scenarios are simulated test data, not current CMRL, MTC or Southern Railway incidents.
         </p>
+          </div>
+        </details>
       </div>
     </Shell>
   );
