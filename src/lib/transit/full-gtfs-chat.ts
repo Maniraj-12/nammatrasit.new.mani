@@ -7,6 +7,7 @@ import { findFullStops, loadFullGtfs, lookupGtfsRoutes, planFullGtfs, type FullS
 import { filterRouteOptions } from "./route-options";
 import { normalizeCommuterMessage, resolveStopName } from "./intent-recovery";
 import { deduplicatePhysicalJourneys } from "./deduplicate-journeys";
+import { detectPriorityConversationIntent } from "./conversation-intent";
 
 function requestedMode(text: string): FullSearchMode {
   const t = text.toLowerCase();
@@ -75,6 +76,7 @@ export async function respondFromFullGtfs(message: string, ctx: Context): Promis
   // intent. Do not interpret the user answering "Metro" or "Bus" as routing.
   if (ctx.grievance) return null;
   const normalized = normalizeCommuterMessage(message);
+  if (detectPriorityConversationIntent(normalized)) return null;
   const t = normalized.trim().toLowerCase();
   if (/\b(traffic|congestion|road jam|rush.hour|traffic.aware|traffic delay)\b/.test(t)) {
     const choices = ctx.availableItineraries ?? [];
