@@ -65,7 +65,7 @@ export type SimulatedRerouteResult={
   candidateCount:number;
 };
 const signature=(it:CanonicalItinerary)=>
-  it.legs.map(l=>[l.mode,l.routeId,l.from,l.to].join("|")).join("→");
+  it.legs.map(l=>[l.mode,l.routeId,l.from,l.to,l.stops.join(">")].join("|")).join("→");
 
 /** Run actual GTFS route searches, then filter/rank against the supplied
  * simulated alert. Existing screen options are included as a fail-safe.
@@ -83,6 +83,7 @@ export async function rerouteForDemo(
        journey.origin!==selected.origin || journey.destination!==selected.destination) return;
     const key=signature(journey);
     if(seenSignatures.has(key))return;
+    if(byId.has(journey.id))return;
     seenSignatures.add(key);
     byId.set(journey.id,journey);
   };
