@@ -1055,7 +1055,7 @@ function serviceUpdatesReply(ctx: Context): ChatReply {
     reply: "Live operator service alerts are not connected. These are **simulated service-disruption examples** for the hackathon, not confirmed current Chennai incidents.",
     cards: [{ kind: "alerts", alerts: DEMO_ALERTS }],
     suggestions: ctx.grievance
-      ? ["Continue complaint", "Cancel complaint", "Show all options"]
+      ? ["Continue complaint", "Cancel complaint"]
       : ["Show all options", "Report a problem", "Is my route accessible?"],
     context: ctx, intent: "service_alerts", status: "OK",
   };
