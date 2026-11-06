@@ -7,7 +7,7 @@ import { findFullStops, loadFullGtfs, lookupGtfsRoutes, planFullGtfs, type FullS
 import { filterRouteOptions } from "./route-options";
 import { normalizeCommuterMessage, resolveStopName } from "./intent-recovery";
 import { deduplicatePhysicalJourneys } from "./deduplicate-journeys";
-import { isServiceUpdateRequest } from "./conversation-intents";
+import { isExplicitIncidentReport, isServiceUpdateRequest } from "./conversation-intents";
 
 function requestedMode(text: string): FullSearchMode {
   const t = text.toLowerCase();
@@ -74,7 +74,7 @@ function selectUseful(routes: CanonicalItinerary[], limit = 6) {
 export async function respondFromFullGtfs(message: string, ctx: Context): Promise<ChatReply | null> {
   // A previously started complaint is a higher-priority conversational
   // intent. Do not interpret the user answering "Metro" or "Bus" as routing.
-  if (ctx.grievance || isServiceUpdateRequest(message)) return null;
+  if (ctx.grievance || isServiceUpdateRequest(message) || isExplicitIncidentReport(message)) return null;
   const normalized = normalizeCommuterMessage(message);
   const t = normalized.trim().toLowerCase();
   if (/\b(traffic|congestion|road jam|rush.hour|traffic.aware|traffic delay)\b/.test(t)) {
